@@ -1,0 +1,328 @@
+---
+title: "Clean NFL Yards Data"
+author: "Kory D. Johnson"
+date: "October 14, 2019"
+output:
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               comment = "",
+               strip.white = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               out.width = "70%",
+               fig.align = "center")
+```
+
+## Topic
+
+This file processes and exports the data for the nfl_yards competition.
+
+## Set Up  {.tabset .tabset-fade}
+
+### Packages/Files 
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(forcats)
+library(snakecase)  # slow as fuck, so use for factor names not dataset
+```
+
+### Load Data 
+
+```{r, cache=T}
+loadData <- function(fileName = "train.csv", ...) {
+  file = paste("../input", fileName, sep="/")
+  data.table::fread(file, ...) %>% 
+    as_tibble()
+}
+df = loadData()
+```
+
+# Data Cleaning {.tabset .tabset-fade}
+
+Taking pointers from the notebook (https://www.kaggle.com/jaseziv83/comprehensive-cleaning-and-eda-of-all-variables), there are several things that need to be updated. Written separately here because that code is fugly.
+
+Also note that some things are just deleted. Stadium and location in particular. My strong prior is that these are irrelevant.
+
+- `OffenseFormation` has a number of blanks - these are changed to "Unknown"
+- `PlayerHeight` has been converted to inches
+- `Stadium` variable has multiple names listed for some stadiums.
+- Similarly, `Location` and `StadiumType` were also condensed to a unique value, as were `Turf` and `GameWeather`
+- `WindSpeed` and `WindDirection` were cleaned up - `WindSpeed` had characters removed (ie 'mph'), and where a range was given (eg 12-25), the lower end of the value was used, while `WindDirection` was condensed down to the main wind directions, rather than having "NE" and "north east" 
+- There are four team abbreviations in the `PossessionTeam` variable not consistent with the abbreviations in `HomeTeamAbbr` and `VisitorTeamAbbr`
+
+A couple differences for the time being:
+
+1. I keep WindDirection as is. A useful feature may be how "into the wind" someone is running, and would like more precise calculations for that.
+2. Moved "accumulating snow" into the snow category for GameWeather.
+
+To Potentially Change
+
+May want to have more precise wind speeds. The ranges 12-22 etc sometimes contain quite a few observations.
+
+## OffenseFormation 
+
+Is there a difference between EMPTY and `""`? How could we check this? Perhaps we can pick plays for which the time difference between snap and handoff are very small and check player location. If the locations look approximatley the same, then would say yes.
+
+```{r}
+unique(df$OffenseFormation)
+table(df$OffenseFormation)
+df %>%  
+  mutate(OffenseFormation = fct_recode(OffenseFormation, missing = "")) %>% 
+  select(OffenseFormation) %>% 
+  table()
+# df %<>% mutate(OffenseFormation = fct_recode(OffenseFormation, Missing = ""))
+```
+
+## Player Height 
+
+```{r}
+head(df$PlayerHeight)
+df %>% 
+  mutate(PlayerHeight = (as.numeric(str_extract(PlayerHeight, "[^-]+")) * 12) + 
+      as.numeric(str_extract(PlayerHeight, "[^-]*$"))) %>% 
+  select(PlayerHeight) %>% 
+  head()
+```
+
+## Columns to Delete
+
+### Stadium
+
+```{r}
+table(df$Stadium)
+stadiumNames = unique(df$Stadium)
+newNames = to_lower_camel_case(stadiumNames)
+names(stadiumNames) = newNames
+
+df %>% 
+  mutate(
+    Stadium = as.factor(Stadium),
+    Stadium = fct_recode(Stadium, !!!stadiumNames)
+  ) %>% 
+  select(Stadium) %>% 
+  table()
+```
+
+```{r}
+df %>% 
+  mutate(
+    Stadium = as.factor(Stadium),
+    Stadium = fct_recode(Stadium, !!!stadiumNames),
+    Stadium = fct_collapse(Stadium,
+      attStadium = "atTStadium",
+      centuryLinkField = "centuryLink",
+      everBankField = "everbankField",
+      firstEnergyField = "firstEnergy",
+      losAngelesMemorialColiseum = "losAngelesMemorialColiseum",
+      mtBankStadium = c("mTBankStadium, mTStadium"),
+      mercedesBenzSuperdome = "mercedesBenzDome",
+      metLife = c("metLifeStadium", "metlifeStadium"),
+      nrgStadium = "nrg",
+      paulBrownStadium = "paulBrownStadium",
+      twickenhamStadium = "twickenham",
+      usBankStadium = "uSBankStadium"
+    )
+  ) %>% 
+  select(Stadium) %>% 
+  table()
+```
+
+### Location
+
+```{r}
+table(df$Location)
+```
+
+## Stadium Type 
+
+```{r}
+table(df$StadiumType)
+
+outdoor = c('Outdoor', 'Outdoors', 'Cloudy', 'Heinz Field', 
+  'Outdor', 'Ourdoor', 'Outside', 'Outddors', 
+  'Outdoor Retr Roof-Open', 'Oudoor', 'Bowl')
+indoorClosed = c('Indoors', 'Indoor', 'Indoor, Roof Closed', 'Indoor, Roof Closed',
+  'Retractable Roof', 'Retr. Roof-Closed', 'Retr. Roof - Closed', 
+  'Retr. Roof Closed')
+indoorOpen = c('Indoor, Open Roof', 'Open', 'Retr. Roof-Open', 'Retr. Roof - Open')
+domeClosed = c('Dome', 'Domed, closed', 'Closed Dome', 'Domed', 'Dome, closed')
+domeOpen = c('Domed, Open', 'Domed, open')
+
+df %>% 
+  mutate(StadiumType = fct_collapse(StadiumType,
+    outside = outdoor,
+    indoorClosed = indoorClosed,
+    indoorOpen = indoorOpen,
+    domeClosed = domeClosed,
+    domeOpen = domeOpen,
+    missing = ""
+  )) %>% 
+  select(StadiumType) %>% 
+  table()
+```
+
+## Turf
+
+```{r}
+table(df$Turf)
+turfNames = unique(df$Turf)
+newTurfNames = to_lower_camel_case(turfNames)
+names(turfNames) = newTurfNames
+newTurfNames
+
+df %>% 
+  mutate(
+    Turf = fct_recode(Turf, !!!turfNames),
+    Turf = fct_collapse(Turf,
+      grass = c("naturallGrass", "naturalGrass", "natural"),
+      artificial = "artifical",
+      ubuSpeedSeriesS5M = "ubuSportsSpeedS5M"
+    )
+  ) %>% 
+  select(Turf) %>% 
+  table()
+```
+
+## Weather
+
+May want to put something for heat, for now more about good vs bad weather. May also separate out severity of snowrain"
+
+```{r}
+table(df$GameWeather)
+
+rain = c('Rainy', 'Rain Chance 40%', 'Showers',
+  'Cloudy with periods of rain, thunder possible. Winds shifting to WNW, 10-20 mph.',
+  'Scattered Showers', 'Cloudy, Rain', 'Rain shower', 'Light Rain', 'Rain')
+overcast = c('Party Cloudy', 'Cloudy, chance of rain',
+  'Coudy', 'Cloudy, 50% change of rain', 'Rain likely, temps in low 40s.',
+  'Cloudy and cold', 'Cloudy, fog started developing in 2nd quarter',
+  'Partly Clouidy', '30% Chance of Rain', 'Mostly Coudy', 'Cloudy and Cool',
+  'cloudy', 'Partly cloudy', 'Overcast', 'Hazy', 'Mostly cloudy', 'Mostly Cloudy',
+  'Partly Cloudy', 'Cloudy')
+clear = c('Partly clear', 'Sunny and clear', 'Sun & clouds', 'Clear and Sunny',
+  'Sunny and cold', 'Sunny Skies', 'Clear and Cool', 'Clear and sunny',
+  'Sunny, highs to upper 80s', 'Mostly Sunny Skies', 'Cold',
+  'Clear and warm', 'Sunny and warm', 'Clear and cold', 'Mostly sunny',
+  'T: 51; H: 55; W: NW 10 mph', 'Clear Skies', 'Clear skies', 'Partly sunny',
+  'Fair', 'Partly Sunny', 'Mostly Sunny', 'Clear', 'Sunny', "Sunny, Windy")
+snow = c('Heavy lake effect snow', 'Snow', 'Cloudy, light snow accumulating 1-3""')
+indoor = c('N/A Indoor', 'Indoors', 'Indoor', 'N/A (Indoors)', 'Controlled Climate', "N/A")
+df %>% 
+  mutate(
+    GameWeather = fct_collapse(GameWeather, 
+      rain = rain,
+      overcast = overcast,
+      clear = clear,
+      snow = snow,
+      indoor = indoor,
+      missing = ""
+    )
+  ) %>% 
+  select(GameWeather) %>% 
+  table()
+```
+
+## WindSpeed and Winddirection {-}
+
+First, there is a mixup between WindSpeed and WindDirection
+```{r}
+table(df$WindSpeed)
+table(df$WindDirection)
+
+df %>% 
+  filter(WindDirection == "Calm") %>% 
+  select(WindSpeed)
+
+df %>% 
+  filter(WindSpeed %in% c("E", "SE", "SSW")) %>% 
+  # select(WindSpeed, WindDirection) %>% 
+  select(WindDirection) %>% 
+  table()
+
+dfDirSpeed = df %>%  
+  filter(WindSpeed %in% c("E", "SE", "SSW")) %>%
+  rename(WindDirection = WindSpeed, WindSpeed = WindDirection)
+  
+dfDirSpeed %>% 
+  select(PlayId, WindSpeed, WindDirection)
+table(dfDirSpeed$WindSpeed)
+
+df[df$WindSpeed %in% c("E", "SE", "SSW"),] = dfDirSpeed
+table(df$WindSpeed)
+table(df$WindDirection)
+
+df[df$WindDirection == "Calm", ] = 0
+
+df %>% 
+  mutate(
+    WindSpeed = str_replace_all(WindSpeed, "[:alpha:]", "") %>% 
+      str_extract("^[:digit:]+") %>% 
+      as.integer()
+  ) %>% 
+  select(WindSpeed) %>% 
+  table()
+```
+
+# Team Abbreviations {-}
+
+```{r}
+teamAbbreviations = c(BAL = "BLT", CLE = "CLV", ARI = "ARZ", HOU = "HST")
+```
+
+# Final Cleaning and Exporting
+
+Some vectors are used such as "outside" or "snow", refer to the appropriate section above for their definitions. Note that a couple of changes to the data frame happened in the section on WindSpeed/WindDirection just because things needed to change in place.
+
+```{r}
+df %<>% 
+  mutate(
+    OffenseFormation = fct_recode(OffenseFormation, missing = ""),
+    PlayerHeight = (as.numeric(str_extract(PlayerHeight, "[^-]+")) * 12) + 
+      as.numeric(str_extract(PlayerHeight, "[^-]*$")),
+    StadiumType = fct_collapse(StadiumType,
+      outside = outdoor,
+      indoorClosed = indoorClosed,
+      indoorOpen = indoorOpen,
+      domeClosed = domeClosed,
+      domeOpen = domeOpen,
+      missing = ""),
+    Turf = fct_recode(Turf, !!!turfNames),
+    Turf = fct_collapse(Turf,
+      grass = c("naturallGrass", "naturalGrass", "natural"),
+      artificial = "artifical",
+      ubuSpeedSeriesS5M = "ubuSportsSpeedS5M"),
+    GameWeather = fct_collapse(GameWeather, 
+      rain = rain,
+      overcast = overcast,
+      clear = clear,
+      snow = snow,
+      indoor = indoor,
+      missing = ""),
+    WindSpeed = str_replace_all(WindSpeed, "[:alpha:]", "") %>% 
+      str_extract("^[:digit:]+") %>% 
+      as.integer(),
+    PossessionTeam = fct_recode(PossessionTeam, !!!teamAbbreviations)
+  ) %>% 
+  select(-Stadium, -Location)
+data.table::fwrite(df, file = "../input/trainClean.csv")
+```
+
+# Checking Clean Data
+
+```{r}
+dfClean = loadData("trainClean.csv")
+colnames(dfClean)
+```
+
