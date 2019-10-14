@@ -1,0 +1,10 @@
+# Untracked files
+
+*.aux
+*.log
+*.out
+*.gz
+*.tdo
+*.bbl
+*.blg
+\input
