@@ -15,6 +15,6 @@ The README is focused on folder organization and notes to keep things in order. 
 
 # Folder Descriptions
 
-Currently they are self explanatory
+Initial ones are self explanatory
 
 - 14.10.2019: eda\_Py, eda\_R, input, scripts 
