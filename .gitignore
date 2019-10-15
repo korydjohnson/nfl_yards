@@ -9,3 +9,4 @@
 *.blg
 \input
 .Rproj.user
+*_cache*

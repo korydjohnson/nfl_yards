@@ -14,6 +14,7 @@ output:
 ```{r setup, include=FALSE}
 library(knitr)
 opts_chunk$set(echo = TRUE,
+               cache = FALSE,
                collapse = FALSE,
                comment = "",
                strip.white = TRUE,
@@ -69,9 +70,10 @@ A couple differences for the time being:
 
 To Potentially Change
 
-May want to have more precise wind speeds. The ranges 12-22 etc sometimes contain quite a few observations.
+1. May want to have more precise wind speeds. The ranges 12-22 etc sometimes contain quite a few observations. At the same time, don't expect this to be particularly relevant.
+2. Weather categories
 
-## OffenseFormation 
+## OffenseFormation {-}
 
 Is there a difference between EMPTY and `""`? How could we check this? Perhaps we can pick plays for which the time difference between snap and handoff are very small and check player location. If the locations look approximatley the same, then would say yes.
 
@@ -84,8 +86,8 @@ df %>%
   table()
 # df %<>% mutate(OffenseFormation = fct_recode(OffenseFormation, Missing = ""))
 ```
-
-## Player Height 
+ 
+## Player Height {-}
 
 ```{r}
 head(df$PlayerHeight)
@@ -96,7 +98,7 @@ df %>%
   head()
 ```
 
-## Columns to Delete
+## Columns to Delete {-}
 
 ### Stadium
 
@@ -145,7 +147,7 @@ df %>%
 table(df$Location)
 ```
 
-## Stadium Type 
+## Stadium Type {-}
 
 ```{r}
 table(df$StadiumType)
@@ -173,7 +175,7 @@ df %>%
   table()
 ```
 
-## Turf
+## Turf {-}
 
 ```{r}
 table(df$Turf)
@@ -195,7 +197,7 @@ df %>%
   table()
 ```
 
-## Weather
+## Weather {-}
 
 May want to put something for heat, for now more about good vs bad weather. May also separate out severity of snowrain"
 
@@ -258,13 +260,19 @@ dfDirSpeed = df %>%
 dfDirSpeed %>% 
   select(PlayId, WindSpeed, WindDirection)
 table(dfDirSpeed$WindSpeed)
+table(dfDirSpeed$WindDirection)
 
-df[df$WindSpeed %in% c("E", "SE", "SSW"),] = dfDirSpeed
+df[df$WindSpeed %in% c("E", "SE", "SSW"), "WindDirection"] = dfDirSpeed$WindDirection
+df[df$WindSpeed %in% c("E", "SE", "SSW"), "WindSpeed"] = dfDirSpeed$WindSpeed
+df[df$WindDirection == "Calm", "WindSpeed"] = 0
+df[df$WindSpeed == "Calm", "WindSpeed"] = 0
+
 table(df$WindSpeed)
 table(df$WindDirection)
+```
 
-df[df$WindDirection == "Calm", ] = 0
-
+Turn WindSpeed to integer and set intervals as lower bound. 
+```{r}
 df %>% 
   mutate(
     WindSpeed = str_replace_all(WindSpeed, "[:alpha:]", "") %>% 
@@ -275,7 +283,35 @@ df %>%
   table()
 ```
 
-# Team Abbreviations {-}
+Fix Categories of WindDirection. Note that wind direction is reported by the direction from which it originates. For example, a northerly wind blows from the north to the south.
+```{r}
+table(df$WindDirection)
+directionList = list(
+  missing = c("", "Calm", "N/A"),
+  east = c("E", "East", "EAST"),
+  ene = c("East North East", "ENE"),
+  ese = c("East Southeast", "ESE", "From ESE"),
+  ne = c("NE", "North East", "Northeast", "NorthEast"),
+  nne = c("From NNE", "N-NE", "NNE"),
+  nnw = c("From NNW", "NNW", "North/Northwest"),
+  nw = c("Northwest", "NW"),
+  north = c("N", "North"),
+  south = c("From S", "s", "S", "South"),
+  sse = c("From SSE", "SSE"),
+  ssw = c("From SSW", "South Southwest", "SSW"),
+  sw = c("From SW", "Southwest", "SouthWest", "SW"),
+  se = c("SE", "Southeast", "South Southeast"),
+  west = c("from W", "From W", "W", "West"),
+  wsw = c("From WSW", "W-SW", "West-Southwest", "WSW"),
+  wnw = c("W-NW", "West Northwest", "WNW")
+)
+df %>% 
+  mutate(WindDirection = fct_collapse(WindDirection, !!!directionList)) %>% 
+  select(WindDirection) %>% 
+  table()
+```
+
+## Team Abbreviations {-}
 
 ```{r}
 teamAbbreviations = c(BAL = "BLT", CLE = "CLV", ARI = "ARZ", HOU = "HST")
@@ -313,6 +349,7 @@ df %<>%
     WindSpeed = str_replace_all(WindSpeed, "[:alpha:]", "") %>% 
       str_extract("^[:digit:]+") %>% 
       as.integer(),
+    WindDirection = fct_collapse(WindDirection, !!!directionList),
     PossessionTeam = fct_recode(PossessionTeam, !!!teamAbbreviations)
   ) %>% 
   select(-Stadium, -Location)

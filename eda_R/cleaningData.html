@@ -531,18 +531,18 @@ summary {
 <li><a href="#load-data"><span class="toc-section-number">0.2.2</span> Load Data</a></li>
 </ul></li>
 <li><a href="#data-cleaning"><span class="toc-section-number">1</span> Data Cleaning</a><ul>
-<li><a href="#offenseformation"><span class="toc-section-number">1.1</span> OffenseFormation</a></li>
-<li><a href="#player-height"><span class="toc-section-number">1.2</span> Player Height</a></li>
-<li><a href="#columns-to-delete"><span class="toc-section-number">1.3</span> Columns to Delete</a><ul>
-<li><a href="#stadium"><span class="toc-section-number">1.3.1</span> Stadium</a></li>
-<li><a href="#location"><span class="toc-section-number">1.3.2</span> Location</a></li>
+<li><a href="#offenseformation">OffenseFormation</a></li>
+<li><a href="#player-height">Player Height</a></li>
+<li><a href="#columns-to-delete">Columns to Delete</a><ul>
+<li><a href="#stadium"><span class="toc-section-number">1.0.1</span> Stadium</a></li>
+<li><a href="#location"><span class="toc-section-number">1.0.2</span> Location</a></li>
 </ul></li>
-<li><a href="#stadium-type"><span class="toc-section-number">1.4</span> Stadium Type</a></li>
-<li><a href="#turf"><span class="toc-section-number">1.5</span> Turf</a></li>
-<li><a href="#weather"><span class="toc-section-number">1.6</span> Weather</a></li>
+<li><a href="#stadium-type">Stadium Type</a></li>
+<li><a href="#turf">Turf</a></li>
+<li><a href="#weather">Weather</a></li>
 <li><a href="#windspeed-and-winddirection">WindSpeed and Winddirection</a></li>
-</ul></li>
 <li><a href="#team-abbreviations">Team Abbreviations</a></li>
+</ul></li>
 <li><a href="#final-cleaning-and-exporting"><span class="toc-section-number">2</span> Final Cleaning and Exporting</a></li>
 <li><a href="#checking-clean-data"><span class="toc-section-number">3</span> Checking Clean Data</a></li>
 </ul>
@@ -589,9 +589,12 @@ summary {
 <li>Moved “accumulating snow” into the snow category for GameWeather.</li>
 </ol>
 <p>To Potentially Change</p>
-<p>May want to have more precise wind speeds. The ranges 12-22 etc sometimes contain quite a few observations.</p>
-<div id="offenseformation" class="section level2">
-<h2><span class="header-section-number">1.1</span> OffenseFormation</h2>
+<ol style="list-style-type: decimal">
+<li>May want to have more precise wind speeds. The ranges 12-22 etc sometimes contain quite a few observations. At the same time, don’t expect this to be particularly relevant.</li>
+<li>Weather categories</li>
+</ol>
+<div id="offenseformation" class="section level2 unnumbered">
+<h2>OffenseFormation</h2>
 <p>Is there a difference between EMPTY and <code>&quot;&quot;</code>? How could we check this? Perhaps we can pick plays for which the time difference between snap and handoff are very small and check player location. If the locations look approximatley the same, then would say yes.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" data-line-number="1"><span class="kw">unique</span>(df<span class="op">$</span>OffenseFormation)</a></code></pre></div>
 <pre><code>[1] &quot;SHOTGUN&quot;    &quot;SINGLEBACK&quot; &quot;JUMBO&quot;      &quot;PISTOL&quot;     &quot;I_FORM&quot;    
@@ -613,8 +616,8 @@ summary {
     150964     225434       1782 </code></pre>
 <div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb9-1" data-line-number="1"><span class="co"># df %&lt;&gt;% mutate(OffenseFormation = fct_recode(OffenseFormation, Missing = &quot;&quot;))</span></a></code></pre></div>
 </div>
-<div id="player-height" class="section level2">
-<h2><span class="header-section-number">1.2</span> Player Height</h2>
+<div id="player-height" class="section level2 unnumbered">
+<h2>Player Height</h2>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb10-1" data-line-number="1"><span class="kw">head</span>(df<span class="op">$</span>PlayerHeight)</a></code></pre></div>
 <pre><code>[1] &quot;6-0&quot; &quot;6-3&quot; &quot;6-3&quot; &quot;6-3&quot; &quot;6-0&quot; &quot;6-2&quot;</code></pre>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb12-1" data-line-number="1">df <span class="op">%&gt;%</span><span class="st"> </span></a>
@@ -632,10 +635,10 @@ summary {
 5           72
 6           74</code></pre>
 </div>
-<div id="columns-to-delete" class="section level2">
-<h2><span class="header-section-number">1.3</span> Columns to Delete</h2>
+<div id="columns-to-delete" class="section level2 unnumbered">
+<h2>Columns to Delete</h2>
 <div id="stadium" class="section level3">
-<h3><span class="header-section-number">1.3.1</span> Stadium</h3>
+<h3><span class="header-section-number">1.0.1</span> Stadium</h3>
 <div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb14-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>Stadium)</a></code></pre></div>
 <pre><code>
                   Arrowhead Stadium                        AT&amp;T Stadium 
@@ -822,7 +825,7 @@ sportsAuthorityFieldAtMileHigh               stateFarmStadium
                           7612                           4576 </code></pre>
 </div>
 <div id="location" class="section level3">
-<h3><span class="header-section-number">1.3.2</span> Location</h3>
+<h3><span class="header-section-number">1.0.2</span> Location</h3>
 <div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb20-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>Location)</a></code></pre></div>
 <pre><code>
          Arlington, Texas             Arlington, TX 
@@ -887,8 +890,8 @@ sportsAuthorityFieldAtMileHigh               stateFarmStadium
                     14630                     14696 </code></pre>
 </div>
 </div>
-<div id="stadium-type" class="section level2">
-<h2><span class="header-section-number">1.4</span> Stadium Type</h2>
+<div id="stadium-type" class="section level2 unnumbered">
+<h2>Stadium Type</h2>
 <div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb22-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>StadiumType)</a></code></pre></div>
 <pre><code>
                                          Bowl            Closed Dome 
@@ -938,8 +941,8 @@ sportsAuthorityFieldAtMileHigh               stateFarmStadium
   indoorOpen 
        12342 </code></pre>
 </div>
-<div id="turf" class="section level2">
-<h2><span class="header-section-number">1.5</span> Turf</h2>
+<div id="turf" class="section level2 unnumbered">
+<h2>Turf</h2>
 <div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb26-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>Turf)</a></code></pre></div>
 <pre><code>
           A-Turf Titan              Artifical             Artificial 
@@ -986,8 +989,8 @@ sportsAuthorityFieldAtMileHigh               stateFarmStadium
            sisGrass twentyFourSevenTurf   ubuSpeedSeriesS5M 
                7238                8030               41448 </code></pre>
 </div>
-<div id="weather" class="section level2">
-<h2><span class="header-section-number">1.6</span> Weather</h2>
+<div id="weather" class="section level2 unnumbered">
+<h2>Weather</h2>
 <p>May want to put something for heat, for now more about good vs bad weather. May also separate out severity of snowrain&quot;</p>
 <div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb32-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>GameWeather)</a></code></pre></div>
 <pre><code>
@@ -1257,17 +1260,25 @@ South Southwest       Southeast       Southwest       SouthWest
 <pre><code>
    1   13    8 
 1122  836 1144 </code></pre>
-<div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb48-1" data-line-number="1">df[df<span class="op">$</span>WindSpeed <span class="op">%in%</span><span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;E&quot;</span>, <span class="st">&quot;SE&quot;</span>, <span class="st">&quot;SSW&quot;</span>),] =<span class="st"> </span>dfDirSpeed</a>
-<a class="sourceLine" id="cb48-2" data-line-number="2"><span class="kw">table</span>(df<span class="op">$</span>WindSpeed)</a></code></pre></div>
+<div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb48-1" data-line-number="1"><span class="kw">table</span>(dfDirSpeed<span class="op">$</span>WindDirection)</a></code></pre></div>
+<pre><code>
+   E   SE  SSW 
+1144 1122  836 </code></pre>
+<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb50-1" data-line-number="1">df[df<span class="op">$</span>WindSpeed <span class="op">%in%</span><span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;E&quot;</span>, <span class="st">&quot;SE&quot;</span>, <span class="st">&quot;SSW&quot;</span>), <span class="st">&quot;WindDirection&quot;</span>] =<span class="st"> </span>dfDirSpeed<span class="op">$</span>WindDirection</a>
+<a class="sourceLine" id="cb50-2" data-line-number="2">df[df<span class="op">$</span>WindSpeed <span class="op">%in%</span><span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;E&quot;</span>, <span class="st">&quot;SE&quot;</span>, <span class="st">&quot;SSW&quot;</span>), <span class="st">&quot;WindSpeed&quot;</span>] =<span class="st"> </span>dfDirSpeed<span class="op">$</span>WindSpeed</a>
+<a class="sourceLine" id="cb50-3" data-line-number="3">df[df<span class="op">$</span>WindDirection <span class="op">==</span><span class="st"> &quot;Calm&quot;</span>, <span class="st">&quot;WindSpeed&quot;</span>] =<span class="st"> </span><span class="dv">0</span></a>
+<a class="sourceLine" id="cb50-4" data-line-number="4">df[df<span class="op">$</span>WindSpeed <span class="op">==</span><span class="st"> &quot;Calm&quot;</span>, <span class="st">&quot;WindSpeed&quot;</span>] =<span class="st"> </span><span class="dv">0</span></a>
+<a class="sourceLine" id="cb50-5" data-line-number="5"></a>
+<a class="sourceLine" id="cb50-6" data-line-number="6"><span class="kw">table</span>(df<span class="op">$</span>WindSpeed)</a></code></pre></div>
 <pre><code>
                                   0                 1                10 
-            67430             13772             12078             29788 
+            66374             15928             13200             29788 
             10-20             10mph             10MPH                11 
              1100               902               902             17116 
             11-17                12             12-22             12mph 
               726             23584              1056               968 
                13            13 MPH                14             14-23 
-             8404              1804              6094               968 
+             9240              1804              6094               968 
                15 15 gusts up to 25                16                17 
             13926               836              9878              3872 
                18                19                 2                20 
@@ -1277,101 +1288,154 @@ South Southwest       Southeast       Southwest       SouthWest
                 4             4 MPh                 5                 6 
             34584               902             53284             41580 
             6 mph                 7             7 MPH                 8 
-             1034             39578              1100             29370 
-                9              Calm                 E                SE 
-            31328              1100              1144              1122 
-              SSW 
-              836 </code></pre>
-<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb50-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>WindDirection)</a></code></pre></div>
+             1034             39578              1100             30514 
+                9 
+            31328 </code></pre>
+<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb52-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>WindDirection)</a></code></pre></div>
 <pre><code>
-                              1              13               8 
-          79376            1122             836            1144 
-           Calm               E            East            EAST 
-           1056           12826            7348             902 
-East North East  East Southeast             ENE             ESE 
-            748            1078           10802            9878 
-       From ESE        From NNE        From NNW          From S 
-            682             968             924            3146 
-       From SSE        From SSW         From SW          from W 
-            880             968            3872             726 
-         From W        From WSW               N            N-NE 
-            990             946           23188            1012 
-            N/A              NE             NNE             NNW 
-            858           30250           20394           14036 
-          North      North East North/Northwest       Northeast 
-          17182            1100             968            3652 
-      NorthEast       Northwest              NW               s 
-           3212            4070           27236            2728 
-              S              SE           South South Southeast 
-          21384           25784           20328             946 
-South Southwest       Southeast       Southwest       SouthWest 
-            858            1936            1804            2134 
-            SSE             SSW              SW               W 
-          13376           19910           25828           22198 
-           W-NW            W-SW            West  West Northwest 
-           1804             968           13618            1056 
- West-Southwest             WNW             WSW 
-           1386           19118           24222 </code></pre>
-<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb52-1" data-line-number="1">df[df<span class="op">$</span>WindDirection <span class="op">==</span><span class="st"> &quot;Calm&quot;</span>, ] =<span class="st"> </span><span class="dv">0</span></a>
-<a class="sourceLine" id="cb52-2" data-line-number="2"></a>
-<a class="sourceLine" id="cb52-3" data-line-number="3">df <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb52-4" data-line-number="4"><span class="st">  </span><span class="kw">mutate</span>(</a>
-<a class="sourceLine" id="cb52-5" data-line-number="5">    <span class="dt">WindSpeed =</span> <span class="kw">str_replace_all</span>(WindSpeed, <span class="st">&quot;[:alpha:]&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb52-6" data-line-number="6"><span class="st">      </span><span class="kw">str_extract</span>(<span class="st">&quot;^[:digit:]+&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb52-7" data-line-number="7"><span class="st">      </span><span class="kw">as.integer</span>()</a>
-<a class="sourceLine" id="cb52-8" data-line-number="8">  ) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb52-9" data-line-number="9"><span class="st">  </span><span class="kw">select</span>(WindSpeed) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb52-10" data-line-number="10"><span class="st">  </span><span class="kw">table</span>()</a></code></pre></div>
+                           Calm               E            East 
+          79376            1056           13970            7348 
+           EAST East North East  East Southeast             ENE 
+            902             748            1078           10802 
+            ESE        From ESE        From NNE        From NNW 
+           9878             682             968             924 
+         From S        From SSE        From SSW         From SW 
+           3146             880             968            3872 
+         from W          From W        From WSW               N 
+            726             990             946           23188 
+           N-NE             N/A              NE             NNE 
+           1012             858           30250           20394 
+            NNW           North      North East North/Northwest 
+          14036           17182            1100             968 
+      Northeast       NorthEast       Northwest              NW 
+           3652            3212            4070           27236 
+              s               S              SE           South 
+           2728           21384           26906           20328 
+South Southeast South Southwest       Southeast       Southwest 
+            946             858            1936            1804 
+      SouthWest             SSE             SSW              SW 
+           2134           13376           20746           25828 
+              W            W-NW            W-SW            West 
+          22198            1804             968           13618 
+ West Northwest  West-Southwest             WNW             WSW 
+           1056            1386           19118           24222 </code></pre>
+<p>Turn WindSpeed to integer and set intervals as lower bound.</p>
+<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb54-1" data-line-number="1">df <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb54-2" data-line-number="2"><span class="st">  </span><span class="kw">mutate</span>(</a>
+<a class="sourceLine" id="cb54-3" data-line-number="3">    <span class="dt">WindSpeed =</span> <span class="kw">str_replace_all</span>(WindSpeed, <span class="st">&quot;[:alpha:]&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb54-4" data-line-number="4"><span class="st">      </span><span class="kw">str_extract</span>(<span class="st">&quot;^[:digit:]+&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb54-5" data-line-number="5"><span class="st">      </span><span class="kw">as.integer</span>()</a>
+<a class="sourceLine" id="cb54-6" data-line-number="6">  ) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb54-7" data-line-number="7"><span class="st">  </span><span class="kw">select</span>(WindSpeed) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb54-8" data-line-number="8"><span class="st">  </span><span class="kw">table</span>()</a></code></pre></div>
 <pre><code>.
     0     1     2     3     4     5     6     7     8     9    10    11 
-14828 12078 24112 26862 35486 53284 42614 40678 29370 31328 32692 17842 
+15928 13200 24112 26862 35486 53284 42614 40678 30514 31328 32692 17842 
    12    13    14    15    16    17    18    19    20    22    23    24 
-25608 10208  7062 14762  9878  3872  1980   660  1012   836  1166   968 </code></pre>
+25608 11044  7062 14762  9878  3872  1980   660  1012   836  1166   968 </code></pre>
+<p>Fix Categories of WindDirection. Note that wind direction is reported by the direction from which it originates. For example, a northerly wind blows from the north to the south.</p>
+<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb56-1" data-line-number="1"><span class="kw">table</span>(df<span class="op">$</span>WindDirection)</a></code></pre></div>
+<pre><code>
+                           Calm               E            East 
+          79376            1056           13970            7348 
+           EAST East North East  East Southeast             ENE 
+            902             748            1078           10802 
+            ESE        From ESE        From NNE        From NNW 
+           9878             682             968             924 
+         From S        From SSE        From SSW         From SW 
+           3146             880             968            3872 
+         from W          From W        From WSW               N 
+            726             990             946           23188 
+           N-NE             N/A              NE             NNE 
+           1012             858           30250           20394 
+            NNW           North      North East North/Northwest 
+          14036           17182            1100             968 
+      Northeast       NorthEast       Northwest              NW 
+           3652            3212            4070           27236 
+              s               S              SE           South 
+           2728           21384           26906           20328 
+South Southeast South Southwest       Southeast       Southwest 
+            946             858            1936            1804 
+      SouthWest             SSE             SSW              SW 
+           2134           13376           20746           25828 
+              W            W-NW            W-SW            West 
+          22198            1804             968           13618 
+ West Northwest  West-Southwest             WNW             WSW 
+           1056            1386           19118           24222 </code></pre>
+<div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb58-1" data-line-number="1">directionList =<span class="st"> </span><span class="kw">list</span>(</a>
+<a class="sourceLine" id="cb58-2" data-line-number="2">  <span class="dt">missing =</span> <span class="kw">c</span>(<span class="st">&quot;&quot;</span>, <span class="st">&quot;Calm&quot;</span>, <span class="st">&quot;N/A&quot;</span>),</a>
+<a class="sourceLine" id="cb58-3" data-line-number="3">  <span class="dt">east =</span> <span class="kw">c</span>(<span class="st">&quot;E&quot;</span>, <span class="st">&quot;East&quot;</span>, <span class="st">&quot;EAST&quot;</span>),</a>
+<a class="sourceLine" id="cb58-4" data-line-number="4">  <span class="dt">ene =</span> <span class="kw">c</span>(<span class="st">&quot;East North East&quot;</span>, <span class="st">&quot;ENE&quot;</span>),</a>
+<a class="sourceLine" id="cb58-5" data-line-number="5">  <span class="dt">ese =</span> <span class="kw">c</span>(<span class="st">&quot;East Southeast&quot;</span>, <span class="st">&quot;ESE&quot;</span>, <span class="st">&quot;From ESE&quot;</span>),</a>
+<a class="sourceLine" id="cb58-6" data-line-number="6">  <span class="dt">ne =</span> <span class="kw">c</span>(<span class="st">&quot;NE&quot;</span>, <span class="st">&quot;North East&quot;</span>, <span class="st">&quot;Northeast&quot;</span>, <span class="st">&quot;NorthEast&quot;</span>),</a>
+<a class="sourceLine" id="cb58-7" data-line-number="7">  <span class="dt">nne =</span> <span class="kw">c</span>(<span class="st">&quot;From NNE&quot;</span>, <span class="st">&quot;N-NE&quot;</span>, <span class="st">&quot;NNE&quot;</span>),</a>
+<a class="sourceLine" id="cb58-8" data-line-number="8">  <span class="dt">nnw =</span> <span class="kw">c</span>(<span class="st">&quot;From NNW&quot;</span>, <span class="st">&quot;NNW&quot;</span>, <span class="st">&quot;North/Northwest&quot;</span>),</a>
+<a class="sourceLine" id="cb58-9" data-line-number="9">  <span class="dt">nw =</span> <span class="kw">c</span>(<span class="st">&quot;Northwest&quot;</span>, <span class="st">&quot;NW&quot;</span>),</a>
+<a class="sourceLine" id="cb58-10" data-line-number="10">  <span class="dt">north =</span> <span class="kw">c</span>(<span class="st">&quot;N&quot;</span>, <span class="st">&quot;North&quot;</span>),</a>
+<a class="sourceLine" id="cb58-11" data-line-number="11">  <span class="dt">south =</span> <span class="kw">c</span>(<span class="st">&quot;From S&quot;</span>, <span class="st">&quot;s&quot;</span>, <span class="st">&quot;S&quot;</span>, <span class="st">&quot;South&quot;</span>),</a>
+<a class="sourceLine" id="cb58-12" data-line-number="12">  <span class="dt">sse =</span> <span class="kw">c</span>(<span class="st">&quot;From SSE&quot;</span>, <span class="st">&quot;SSE&quot;</span>),</a>
+<a class="sourceLine" id="cb58-13" data-line-number="13">  <span class="dt">ssw =</span> <span class="kw">c</span>(<span class="st">&quot;From SSW&quot;</span>, <span class="st">&quot;South Southwest&quot;</span>, <span class="st">&quot;SSW&quot;</span>),</a>
+<a class="sourceLine" id="cb58-14" data-line-number="14">  <span class="dt">sw =</span> <span class="kw">c</span>(<span class="st">&quot;From SW&quot;</span>, <span class="st">&quot;Southwest&quot;</span>, <span class="st">&quot;SouthWest&quot;</span>, <span class="st">&quot;SW&quot;</span>),</a>
+<a class="sourceLine" id="cb58-15" data-line-number="15">  <span class="dt">se =</span> <span class="kw">c</span>(<span class="st">&quot;SE&quot;</span>, <span class="st">&quot;Southeast&quot;</span>, <span class="st">&quot;South Southeast&quot;</span>),</a>
+<a class="sourceLine" id="cb58-16" data-line-number="16">  <span class="dt">west =</span> <span class="kw">c</span>(<span class="st">&quot;from W&quot;</span>, <span class="st">&quot;From W&quot;</span>, <span class="st">&quot;W&quot;</span>, <span class="st">&quot;West&quot;</span>),</a>
+<a class="sourceLine" id="cb58-17" data-line-number="17">  <span class="dt">wsw =</span> <span class="kw">c</span>(<span class="st">&quot;From WSW&quot;</span>, <span class="st">&quot;W-SW&quot;</span>, <span class="st">&quot;West-Southwest&quot;</span>, <span class="st">&quot;WSW&quot;</span>),</a>
+<a class="sourceLine" id="cb58-18" data-line-number="18">  <span class="dt">wnw =</span> <span class="kw">c</span>(<span class="st">&quot;W-NW&quot;</span>, <span class="st">&quot;West Northwest&quot;</span>, <span class="st">&quot;WNW&quot;</span>)</a>
+<a class="sourceLine" id="cb58-19" data-line-number="19">)</a>
+<a class="sourceLine" id="cb58-20" data-line-number="20">df <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb58-21" data-line-number="21"><span class="st">  </span><span class="kw">mutate</span>(<span class="dt">WindDirection =</span> <span class="kw">fct_collapse</span>(WindDirection, <span class="op">!!!</span>directionList)) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb58-22" data-line-number="22"><span class="st">  </span><span class="kw">select</span>(WindDirection) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb58-23" data-line-number="23"><span class="st">  </span><span class="kw">table</span>()</a></code></pre></div>
+<pre><code>.
+missing    east     ene     ese     nne     nnw   south     sse     ssw 
+  81290   22220   11550   11638   22374   15928   47586   14256   22572 
+     sw    west     wsw   north      ne      nw      se     wnw 
+  33638   37532   27522   40370   38214   31306   29788   21978 </code></pre>
 </div>
+<div id="team-abbreviations" class="section level2 unnumbered">
+<h2>Team Abbreviations</h2>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb60-1" data-line-number="1">teamAbbreviations =<span class="st"> </span><span class="kw">c</span>(<span class="dt">BAL =</span> <span class="st">&quot;BLT&quot;</span>, <span class="dt">CLE =</span> <span class="st">&quot;CLV&quot;</span>, <span class="dt">ARI =</span> <span class="st">&quot;ARZ&quot;</span>, <span class="dt">HOU =</span> <span class="st">&quot;HST&quot;</span>)</a></code></pre></div>
 </div>
-<div id="team-abbreviations" class="section level1 unnumbered">
-<h1>Team Abbreviations</h1>
-<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb54-1" data-line-number="1">teamAbbreviations =<span class="st"> </span><span class="kw">c</span>(<span class="dt">BAL =</span> <span class="st">&quot;BLT&quot;</span>, <span class="dt">CLE =</span> <span class="st">&quot;CLV&quot;</span>, <span class="dt">ARI =</span> <span class="st">&quot;ARZ&quot;</span>, <span class="dt">HOU =</span> <span class="st">&quot;HST&quot;</span>)</a></code></pre></div>
 </div>
 <div id="final-cleaning-and-exporting" class="section level1">
 <h1><span class="header-section-number">2</span> Final Cleaning and Exporting</h1>
 <p>Some vectors are used such as “outside” or “snow”, refer to the appropriate section above for their definitions. Note that a couple of changes to the data frame happened in the section on WindSpeed/WindDirection just because things needed to change in place.</p>
-<div class="sourceCode" id="cb55"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb55-1" data-line-number="1">df <span class="op">%&lt;&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb55-2" data-line-number="2"><span class="st">  </span><span class="kw">mutate</span>(</a>
-<a class="sourceLine" id="cb55-3" data-line-number="3">    <span class="dt">OffenseFormation =</span> <span class="kw">fct_recode</span>(OffenseFormation, <span class="dt">missing =</span> <span class="st">&quot;&quot;</span>),</a>
-<a class="sourceLine" id="cb55-4" data-line-number="4">    <span class="dt">PlayerHeight =</span> (<span class="kw">as.numeric</span>(<span class="kw">str_extract</span>(PlayerHeight, <span class="st">&quot;[^-]+&quot;</span>)) <span class="op">*</span><span class="st"> </span><span class="dv">12</span>) <span class="op">+</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb55-5" data-line-number="5"><span class="st">      </span><span class="kw">as.numeric</span>(<span class="kw">str_extract</span>(PlayerHeight, <span class="st">&quot;[^-]*$&quot;</span>)),</a>
-<a class="sourceLine" id="cb55-6" data-line-number="6">    <span class="dt">StadiumType =</span> <span class="kw">fct_collapse</span>(StadiumType,</a>
-<a class="sourceLine" id="cb55-7" data-line-number="7">      <span class="dt">outside =</span> outdoor,</a>
-<a class="sourceLine" id="cb55-8" data-line-number="8">      <span class="dt">indoorClosed =</span> indoorClosed,</a>
-<a class="sourceLine" id="cb55-9" data-line-number="9">      <span class="dt">indoorOpen =</span> indoorOpen,</a>
-<a class="sourceLine" id="cb55-10" data-line-number="10">      <span class="dt">domeClosed =</span> domeClosed,</a>
-<a class="sourceLine" id="cb55-11" data-line-number="11">      <span class="dt">domeOpen =</span> domeOpen,</a>
-<a class="sourceLine" id="cb55-12" data-line-number="12">      <span class="dt">missing =</span> <span class="st">&quot;&quot;</span>),</a>
-<a class="sourceLine" id="cb55-13" data-line-number="13">    <span class="dt">Turf =</span> <span class="kw">fct_recode</span>(Turf, <span class="op">!!!</span>turfNames),</a>
-<a class="sourceLine" id="cb55-14" data-line-number="14">    <span class="dt">Turf =</span> <span class="kw">fct_collapse</span>(Turf,</a>
-<a class="sourceLine" id="cb55-15" data-line-number="15">      <span class="dt">grass =</span> <span class="kw">c</span>(<span class="st">&quot;naturallGrass&quot;</span>, <span class="st">&quot;naturalGrass&quot;</span>, <span class="st">&quot;natural&quot;</span>),</a>
-<a class="sourceLine" id="cb55-16" data-line-number="16">      <span class="dt">artificial =</span> <span class="st">&quot;artifical&quot;</span>,</a>
-<a class="sourceLine" id="cb55-17" data-line-number="17">      <span class="dt">ubuSpeedSeriesS5M =</span> <span class="st">&quot;ubuSportsSpeedS5M&quot;</span>),</a>
-<a class="sourceLine" id="cb55-18" data-line-number="18">    <span class="dt">GameWeather =</span> <span class="kw">fct_collapse</span>(GameWeather, </a>
-<a class="sourceLine" id="cb55-19" data-line-number="19">      <span class="dt">rain =</span> rain,</a>
-<a class="sourceLine" id="cb55-20" data-line-number="20">      <span class="dt">overcast =</span> overcast,</a>
-<a class="sourceLine" id="cb55-21" data-line-number="21">      <span class="dt">clear =</span> clear,</a>
-<a class="sourceLine" id="cb55-22" data-line-number="22">      <span class="dt">snow =</span> snow,</a>
-<a class="sourceLine" id="cb55-23" data-line-number="23">      <span class="dt">indoor =</span> indoor,</a>
-<a class="sourceLine" id="cb55-24" data-line-number="24">      <span class="dt">missing =</span> <span class="st">&quot;&quot;</span>),</a>
-<a class="sourceLine" id="cb55-25" data-line-number="25">    <span class="dt">WindSpeed =</span> <span class="kw">str_replace_all</span>(WindSpeed, <span class="st">&quot;[:alpha:]&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb55-26" data-line-number="26"><span class="st">      </span><span class="kw">str_extract</span>(<span class="st">&quot;^[:digit:]+&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb55-27" data-line-number="27"><span class="st">      </span><span class="kw">as.integer</span>(),</a>
-<a class="sourceLine" id="cb55-28" data-line-number="28">    <span class="dt">PossessionTeam =</span> <span class="kw">fct_recode</span>(PossessionTeam, <span class="op">!!!</span>teamAbbreviations)</a>
-<a class="sourceLine" id="cb55-29" data-line-number="29">  ) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb55-30" data-line-number="30"><span class="st">  </span><span class="kw">select</span>(<span class="op">-</span>Stadium, <span class="op">-</span>Location)</a>
-<a class="sourceLine" id="cb55-31" data-line-number="31">data.table<span class="op">::</span><span class="kw">fwrite</span>(df, <span class="dt">file =</span> <span class="st">&quot;../input/trainClean.csv&quot;</span>)</a></code></pre></div>
+<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb61-1" data-line-number="1">df <span class="op">%&lt;&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb61-2" data-line-number="2"><span class="st">  </span><span class="kw">mutate</span>(</a>
+<a class="sourceLine" id="cb61-3" data-line-number="3">    <span class="dt">OffenseFormation =</span> <span class="kw">fct_recode</span>(OffenseFormation, <span class="dt">missing =</span> <span class="st">&quot;&quot;</span>),</a>
+<a class="sourceLine" id="cb61-4" data-line-number="4">    <span class="dt">PlayerHeight =</span> (<span class="kw">as.numeric</span>(<span class="kw">str_extract</span>(PlayerHeight, <span class="st">&quot;[^-]+&quot;</span>)) <span class="op">*</span><span class="st"> </span><span class="dv">12</span>) <span class="op">+</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb61-5" data-line-number="5"><span class="st">      </span><span class="kw">as.numeric</span>(<span class="kw">str_extract</span>(PlayerHeight, <span class="st">&quot;[^-]*$&quot;</span>)),</a>
+<a class="sourceLine" id="cb61-6" data-line-number="6">    <span class="dt">StadiumType =</span> <span class="kw">fct_collapse</span>(StadiumType,</a>
+<a class="sourceLine" id="cb61-7" data-line-number="7">      <span class="dt">outside =</span> outdoor,</a>
+<a class="sourceLine" id="cb61-8" data-line-number="8">      <span class="dt">indoorClosed =</span> indoorClosed,</a>
+<a class="sourceLine" id="cb61-9" data-line-number="9">      <span class="dt">indoorOpen =</span> indoorOpen,</a>
+<a class="sourceLine" id="cb61-10" data-line-number="10">      <span class="dt">domeClosed =</span> domeClosed,</a>
+<a class="sourceLine" id="cb61-11" data-line-number="11">      <span class="dt">domeOpen =</span> domeOpen,</a>
+<a class="sourceLine" id="cb61-12" data-line-number="12">      <span class="dt">missing =</span> <span class="st">&quot;&quot;</span>),</a>
+<a class="sourceLine" id="cb61-13" data-line-number="13">    <span class="dt">Turf =</span> <span class="kw">fct_recode</span>(Turf, <span class="op">!!!</span>turfNames),</a>
+<a class="sourceLine" id="cb61-14" data-line-number="14">    <span class="dt">Turf =</span> <span class="kw">fct_collapse</span>(Turf,</a>
+<a class="sourceLine" id="cb61-15" data-line-number="15">      <span class="dt">grass =</span> <span class="kw">c</span>(<span class="st">&quot;naturallGrass&quot;</span>, <span class="st">&quot;naturalGrass&quot;</span>, <span class="st">&quot;natural&quot;</span>),</a>
+<a class="sourceLine" id="cb61-16" data-line-number="16">      <span class="dt">artificial =</span> <span class="st">&quot;artifical&quot;</span>,</a>
+<a class="sourceLine" id="cb61-17" data-line-number="17">      <span class="dt">ubuSpeedSeriesS5M =</span> <span class="st">&quot;ubuSportsSpeedS5M&quot;</span>),</a>
+<a class="sourceLine" id="cb61-18" data-line-number="18">    <span class="dt">GameWeather =</span> <span class="kw">fct_collapse</span>(GameWeather, </a>
+<a class="sourceLine" id="cb61-19" data-line-number="19">      <span class="dt">rain =</span> rain,</a>
+<a class="sourceLine" id="cb61-20" data-line-number="20">      <span class="dt">overcast =</span> overcast,</a>
+<a class="sourceLine" id="cb61-21" data-line-number="21">      <span class="dt">clear =</span> clear,</a>
+<a class="sourceLine" id="cb61-22" data-line-number="22">      <span class="dt">snow =</span> snow,</a>
+<a class="sourceLine" id="cb61-23" data-line-number="23">      <span class="dt">indoor =</span> indoor,</a>
+<a class="sourceLine" id="cb61-24" data-line-number="24">      <span class="dt">missing =</span> <span class="st">&quot;&quot;</span>),</a>
+<a class="sourceLine" id="cb61-25" data-line-number="25">    <span class="dt">WindSpeed =</span> <span class="kw">str_replace_all</span>(WindSpeed, <span class="st">&quot;[:alpha:]&quot;</span>, <span class="st">&quot;&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb61-26" data-line-number="26"><span class="st">      </span><span class="kw">str_extract</span>(<span class="st">&quot;^[:digit:]+&quot;</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb61-27" data-line-number="27"><span class="st">      </span><span class="kw">as.integer</span>(),</a>
+<a class="sourceLine" id="cb61-28" data-line-number="28">    <span class="dt">WindDirection =</span> <span class="kw">fct_collapse</span>(WindDirection, <span class="op">!!!</span>directionList),</a>
+<a class="sourceLine" id="cb61-29" data-line-number="29">    <span class="dt">PossessionTeam =</span> <span class="kw">fct_recode</span>(PossessionTeam, <span class="op">!!!</span>teamAbbreviations)</a>
+<a class="sourceLine" id="cb61-30" data-line-number="30">  ) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb61-31" data-line-number="31"><span class="st">  </span><span class="kw">select</span>(<span class="op">-</span>Stadium, <span class="op">-</span>Location)</a>
+<a class="sourceLine" id="cb61-32" data-line-number="32">data.table<span class="op">::</span><span class="kw">fwrite</span>(df, <span class="dt">file =</span> <span class="st">&quot;../input/trainClean.csv&quot;</span>)</a></code></pre></div>
 </div>
 <div id="checking-clean-data" class="section level1">
 <h1><span class="header-section-number">3</span> Checking Clean Data</h1>
-<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb56-1" data-line-number="1">dfClean =<span class="st"> </span><span class="kw">loadData</span>(<span class="st">&quot;trainClean.csv&quot;</span>)</a>
-<a class="sourceLine" id="cb56-2" data-line-number="2"><span class="kw">colnames</span>(dfClean)</a></code></pre></div>
+<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb62-1" data-line-number="1">dfClean =<span class="st"> </span><span class="kw">loadData</span>(<span class="st">&quot;trainClean.csv&quot;</span>)</a>
+<a class="sourceLine" id="cb62-2" data-line-number="2"><span class="kw">colnames</span>(dfClean)</a></code></pre></div>
 <pre><code> [1] &quot;GameId&quot;                 &quot;PlayId&quot;                
  [3] &quot;Team&quot;                   &quot;X&quot;                     
  [5] &quot;Y&quot;                      &quot;S&quot;                     
