@@ -1,0 +1,240 @@
+---
+title: "Bayesian Regression for NFL"
+author: "Kory D. Johnson"
+date: 'Last Compiled `r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               comment = "",
+               strip.white = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               out.width = "70%",
+               fig.align = "center")
+```
+
+## Topic
+
+This file creates some basic Bayesian Regression models for nfl_yards.
+
+## Set Up  {.tabset .tabset-fade}
+
+### Packages/Files {-}
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(modelr)  # for cv
+# devtools::install_github("korydjohnson/rai")
+library(rai)
+```
+
+### Load Data {-}
+
+```{r, cache=T}
+loadData <- function(fileName = "train.csv", ...) {
+  file = paste("../input", fileName, sep="/")
+  data.table::fread(file, ...) %>% 
+    as_tibble()
+}
+df = loadData("trainClean.csv")
+```
+
+# Compare to MLE Beta
+
+As the base model was a marginal MLE of yards, see shape of predicted distribution.
+
+```{r}
+a = 112.75760456
+b = 103.6066858
+x = seq(0, 198)/198
+beta = dbeta(x, a, b)
+dfBeta = tibble(x, beta)
+dfBeta %>% 
+  filter(beta > .001) %>% 
+  ggplot() +
+  geom_line(aes(x*199-99, beta))
+```
+
+Short answer: yeah, normal.
+```{r}
+mu = a/(a+b)
+sig = sqrt(a*b/((a+b)^2*(a+b+1)))
+dfBeta %<>%
+  mutate(normal = dnorm(x, mu, sig))
+dfBeta %>% 
+  gather("dist", "density", beta, normal) %>% 
+  filter(density > .01) %>% 
+  ggplot() +
+  geom_line(aes(x, density, color=dist))
+```
+
+# CV and Compute Error
+
+LM to compare
+```{r}
+runLM = function(theData, theResponse) {
+  lm(theResponse ~ .^2, data=theData)
+}
+```
+
+Helper Functions
+```{r}
+getProbs = function(est, sd, tRangeY=NULL) {
+  if (is.null(tRangeY)) {
+    rangeY = log(pmax(seq(-99,99) + 15, 0))
+  }
+  pnorm(tRangeY, est, sd)
+}
+
+crps = function(probVec, y, tRangeY=NULL) {
+  if (is.null(tRangeY)) {
+    rangeY = log(pmax(seq(-99,99) + 15, 0))
+  }
+  Hy = (tRangeY >= y)
+  mean((probVec-Hy)^2)
+}
+```
+
+Just to compare. Will use CV to get an estimate of performance before uploading to cloud.
+```{r}
+predictCV = function(theResponse, theData, modelFnc, k=5) {
+  if (any(grepl("runAuction", capture.output(modelFnc)))) {
+    modFnc = function(data) {
+      # to send original data; modified it below for use in OOS prediction
+      theDataO = apply(data[, -1, drop=F], 2, function(col) col^(1/startDeg))
+      modelFnc(theDataO, data[, 1])$model
+    }
+    theData = model.matrix(~. - 1, data=as.data.frame(theData))
+    startDeg = formals(modelFnc)$startDeg
+    theData = apply(theData, 2, function(col) col^startDeg)  # modify for OOS
+    cat("rai", startDeg, ";\n")
+  } else {
+    cat("other; \n")
+    modFnc = function(data) {
+      modelFnc(data[, -1, drop=F], data[, 1])
+    }
+  }
+  
+  theResponse = as.matrix(theResponse)
+  data = data.frame(y=theResponse, theData)
+  predicted = crossv_kfold(data, k = k) %>% 
+    mutate(
+      model = map(train, ~modFnc(as.data.frame(.))),
+      predicted = map2(model, test, ~ add_predictions(as.data.frame(.y), .x)),
+      sd = map_dbl(model, ~ summary(.)$sigma)
+    ) %>%
+    select(predicted, sd) %>% 
+    unnest(predicted) %>% 
+    mutate(
+      probEst = map2(pred, sd, getProbs),
+      crps = map2_dbl(probEst, y, crps)
+    )
+  mean(predicted$crps)
+}
+# select(predicted, y, pred)
+# pred = tibble(dfSub$Yards, exp(predicted$pred) - 15)
+# index = 200
+# mean(predicted$y)
+# plot(tRangeY, predicted$probEst[[index]])
+# abline(v=predicted$y[index])
+# ggplot(predicted) +
+ # geom_point(aes(pred, y-pred))
+```
+
+Wrapper
+```{r}
+errorOOS = function(theResponse, theData, fncs, k=5) {
+  map(fncs, ~ predictCV(theResponse, theData, ., k))
+}
+```
+
+Test
+```{r}  
+dfSub = df %>% 
+  mutate(Down = as.factor(Down)) %>% 
+  select(Yards, Distance, Down) %>% 
+  distinct()
+theResponse = log(pmax(dfSub$Yards + 15, 0))
+theData = select(dfSub, -Yards)
+# theData = data.frame(rep(1, length(theResponse)))
+modelFnc = runLM
+# modelFnc = rai
+predictCV(theResponse, theData, modelFnc)
+# rai(theData, theResponse)
+```
+
+Looking at subset of Data
+```{r}
+ggplot(dfSub, aes(Distance, Yards)) +
+  geom_jitter() +
+  geom_smooth(se=F) +
+  facet_wrap(~factor(Down))
+```
+
+## Normal {-}
+
+MLE unadjusted
+```{r}
+theResponse = dfSub$Yards
+(pred = mean(theResponse))
+(sd = sd(theResponse))
+tibble(theResponse) %>% 
+  mutate(
+    probEst = map2(pred, sd, getProbs, tRangeY=seq(-99,99)),
+    crps = map2_dbl(probEst, theResponse, crps, tRangeY=seq(-99,99))
+  ) %>% 
+  summarise(crps = mean(crps))
+```
+
+MLE transformed
+```{r}
+theResponse = log(pmax(dfSub$Yards + 15, 0))
+(pred = mean(theResponse))
+(sd = sd(theResponse))
+normTrans = pnorm(x, a, b)
+tibble(theResponse) %>% 
+  mutate(
+    probEst = map2(pred, sd, getProbs),
+    crps = map2_dbl(probEst, theResponse, crps)
+  ) %>% 
+  summarise(crps = mean(crps))
+```
+
+idk why normal seems to do poorly even though the estimated beta distribution looks essentially normal. Check same code for beta.
+
+beta
+```{r}
+getProbsBeta = function(a,b) {
+  x = seq(0, 198)/198
+  pbeta(x, a, b)
+}
+theResponse = dfSub$Yards
+
+a = 112.75760456
+b = 103.6066858
+x = seq(0, 198)/198
+beta = pbeta(x, a, b)
+tibble(x, beta, pred = x*198-99)
+tibble(theResponse) %>% 
+  mutate(
+    probEst = map2(a, b, getProbsBeta),
+    crps = map2_dbl(probEst, theResponse, crps, tRangeY=seq(-99,99))
+  ) %>% 
+  summarise(crps = mean(crps))
+```
+
+Hm, from this, beta seems to be on the same scale as normal, which makes sense. Checking with Danijel to see if he gets similar answers on training data. It is far higher than the results we get on the test data.
+
+
+## Sub2 {-}
