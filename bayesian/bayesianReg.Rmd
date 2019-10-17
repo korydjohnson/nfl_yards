@@ -50,7 +50,7 @@ loadData <- function(fileName = "train.csv", ...) {
 df = loadData("trainClean.csv")
 ```
 
-# Compare to MLE Beta
+# Compare Normal to MLE Beta
 
 As the base model was a marginal MLE of yards, see shape of predicted distribution.
 
@@ -84,24 +84,24 @@ dfBeta %>%
 LM to compare
 ```{r}
 runLM = function(theData, theResponse) {
-  lm(theResponse ~ .^2, data=theData)
+  lm(theResponse ~ ., data=theData)
 }
 ```
 
 Helper Functions
 ```{r}
-getProbs = function(est, sd, tRangeY=NULL) {
-  if (is.null(tRangeY)) {
+getProbs = function(est, sd, rangeY=NULL) {
+  if (is.null(rangeY)) {
     rangeY = log(pmax(seq(-99,99) + 15, 0))
   }
-  pnorm(tRangeY, est, sd)
+  pnorm(rangeY, est, sd)
 }
 
-crps = function(probVec, y, tRangeY=NULL) {
-  if (is.null(tRangeY)) {
+crps = function(probVec, y, rangeY=NULL) {
+  if (is.null(rangeY)) {
     rangeY = log(pmax(seq(-99,99) + 15, 0))
   }
-  Hy = (tRangeY >= y)
+  Hy = (rangeY >= y)
   mean((probVec-Hy)^2)
 }
 ```
@@ -128,7 +128,7 @@ predictCV = function(theResponse, theData, modelFnc, k=5) {
   
   theResponse = as.matrix(theResponse)
   data = data.frame(y=theResponse, theData)
-  predicted = crossv_kfold(data, k = k) %>% 
+  data %>% crossv_kfold(k = k) %>% 
     mutate(
       model = map(train, ~modFnc(as.data.frame(.))),
       predicted = map2(model, test, ~ add_predictions(as.data.frame(.y), .x)),
@@ -139,21 +139,19 @@ predictCV = function(theResponse, theData, modelFnc, k=5) {
     mutate(
       probEst = map2(pred, sd, getProbs),
       crps = map2_dbl(probEst, y, crps)
-    )
-  mean(predicted$crps)
+    ) %>% 
+    summarise(crps = mean(crps))
 }
 # select(predicted, y, pred)
 # pred = tibble(dfSub$Yards, exp(predicted$pred) - 15)
 # index = 200
 # mean(predicted$y)
-# plot(tRangeY, predicted$probEst[[index]])
+# plot(rangeY, predicted$probEst[[index]])
 # abline(v=predicted$y[index])
 # ggplot(predicted) +
  # geom_point(aes(pred, y-pred))
-```
 
-Wrapper
-```{r}
+#wrapper
 errorOOS = function(theResponse, theData, fncs, k=5) {
   map(fncs, ~ predictCV(theResponse, theData, ., k))
 }
@@ -162,24 +160,22 @@ errorOOS = function(theResponse, theData, fncs, k=5) {
 Test
 ```{r}  
 dfSub = df %>% 
-  mutate(Down = as.factor(Down)) %>% 
-  select(Yards, Distance, Down) %>% 
-  distinct()
+  distinct(PlayId, .keep_all = T) %>%
+  # select(Yards, Distance, Down) %>% 
+  select(Yards, Distance, Down, YardLine, NflIdRusher, OffenseFormation,
+    OffensePersonnel, DefendersInTheBox, DefensePersonnel) %>%
+  mutate(
+    Down = as.factor(Down),
+    NflIdRusher = as.factor(NflIdRusher)
+  )
+
 theResponse = log(pmax(dfSub$Yards + 15, 0))
 theData = select(dfSub, -Yards)
 # theData = data.frame(rep(1, length(theResponse)))
 modelFnc = runLM
-# modelFnc = rai
+modelFnc = rai
 predictCV(theResponse, theData, modelFnc)
-# rai(theData, theResponse)
-```
-
-Looking at subset of Data
-```{r}
-ggplot(dfSub, aes(Distance, Yards)) +
-  geom_jitter() +
-  geom_smooth(se=F) +
-  facet_wrap(~factor(Down))
+errorOOS(theResponse, theData, list("rai"=rai, "lm"=runLM))
 ```
 
 ## Normal {-}
@@ -191,8 +187,8 @@ theResponse = dfSub$Yards
 (sd = sd(theResponse))
 tibble(theResponse) %>% 
   mutate(
-    probEst = map2(pred, sd, getProbs, tRangeY=seq(-99,99)),
-    crps = map2_dbl(probEst, theResponse, crps, tRangeY=seq(-99,99))
+    probEst = map2(pred, sd, getProbs, rangeY=seq(-99,99)),
+    crps = map2_dbl(probEst, theResponse, crps, rangeY=seq(-99,99))
   ) %>% 
   summarise(crps = mean(crps))
 ```
@@ -202,7 +198,6 @@ MLE transformed
 theResponse = log(pmax(dfSub$Yards + 15, 0))
 (pred = mean(theResponse))
 (sd = sd(theResponse))
-normTrans = pnorm(x, a, b)
 tibble(theResponse) %>% 
   mutate(
     probEst = map2(pred, sd, getProbs),
@@ -229,12 +224,14 @@ tibble(x, beta, pred = x*198-99)
 tibble(theResponse) %>% 
   mutate(
     probEst = map2(a, b, getProbsBeta),
-    crps = map2_dbl(probEst, theResponse, crps, tRangeY=seq(-99,99))
+    crps = map2_dbl(probEst, theResponse, crps, rangeY=seq(-99,99))
   ) %>% 
   summarise(crps = mean(crps))
 ```
 
 Hm, from this, beta seems to be on the same scale as normal, which makes sense. Checking with Danijel to see if he gets similar answers on training data. It is far higher than the results we get on the test data.
+
+Data Issue. All good now.
 
 
 ## Sub2 {-}

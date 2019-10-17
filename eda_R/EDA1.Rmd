@@ -1,0 +1,67 @@
+---
+title: "Notes on "
+author: "Kory D. Johnson"
+date: 'Last Compiled `r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               comment = "",
+               strip.white = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               out.width = "70%",
+               fig.align = "center")
+```
+
+## Topic
+
+This file 
+
+## Set Up  {.tabset .tabset-fade}
+
+### Packages/Files {-}
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(MASS)
+library(rai)
+```
+
+### Load Data {-}
+
+```{r, cache=T}
+loadData <- function(folderName, fileName, ...) {
+  if (.Platform$OS.type == "windows") {
+  dataPath = "D:/Data"
+  } else {
+    dataPath = "/media/kory/DATA/Data"
+  }
+  file = paste(dataPath, folderName, fileName, sep="/")
+  data.table::fread(file, ...)
+}
+```
+
+# EDA {.tabset .tabset-fade}
+
+Looking at subset of Data
+```{r}
+ggplot(dfSub, aes(Distance, Yards)) +
+  geom_jitter() +
+  geom_smooth(se=F) +
+  facet_wrap(~factor(Down))
+```
+
+## Sub1 {-}
+
+## Sub2 {-}

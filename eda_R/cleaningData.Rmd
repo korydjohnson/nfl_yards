@@ -317,6 +317,17 @@ df %>%
 teamAbbreviations = c(BAL = "BLT", CLE = "CLV", ARI = "ARZ", HOU = "HST")
 ```
 
+## Defenders in the Box {-}
+
+There are three missing values. Replace with mean.
+
+```{r}
+sum(is.na(df$DefendersInTheBox))
+df[which(is.na(df$DefendersInTheBox)), "DefendersInTheBox"] = mean(df$DefendersInTheBox,
+  na.rm = T)
+sum(is.na(df$DefendersInTheBox))
+```
+
 # Final Cleaning and Exporting
 
 Some vectors are used such as "outside" or "snow", refer to the appropriate section above for their definitions. Note that a couple of changes to the data frame happened in the section on WindSpeed/WindDirection just because things needed to change in place.
