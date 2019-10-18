@@ -26,10 +26,11 @@ class DataCleaner:
                            for col in self.categoricals}
 
         # Columns to Delete:
-        self.dropColumns = ["GameClock", "DisplayName", "JerseyNumber", "NflId", "Season",
-                            "NflIdRusher", "PlayerBirthDate", "PlayerCollegeName", "Stadium",
-                            "Location", "WindSpeed", "WindDirection", "HomeScoreBeforePlay",
-                            "VisitorScoreBeforePlay", "Humidity", "Temperature"]
+        self.dropColumns = ["GameClock", "DisplayName", "JerseyNumber", "Season",
+                            "PlayerBirthDate", "PlayerCollegeName", "Stadium",
+                            "Location", "WindSpeed", "WindDirection",
+                            "HomeScoreBeforePlay", "VisitorScoreBeforePlay", "Humidity",
+                            "Temperature"]
 
         # fixing abbreviations
         self.map_Teams = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU"}
@@ -101,9 +102,6 @@ class DataCleaner:
             df[col] = pd.Categorical(df[col], categories=self.categories[col]).codes
 
     def clean_data(self, df):
-        # Create a variable if the player is the rusher
-        df["Is_rusher"] = df["NflId"] == df["NflIdRusher"]
-
         # compute player height
         temp = df.PlayerHeight.str.split("-", expand=True)
         df.PlayerHeight = pd.to_numeric(temp[0]) * 12 + pd.to_numeric(temp[1])
