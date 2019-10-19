@@ -6,7 +6,7 @@ Feature Generation Function(s)
 4. In the end, will have one row per PLAY
 
 NOTE:
-    All feature functions need to start with "feature" and will be called in
+    All feature functions need to start with "f_" and will be called in
     ALPHABETICAL order. If make features using the features...well, it gets
     more complicated. Probably need a second order "new_features_2" that calls
     on the produced features etc.
@@ -18,30 +18,53 @@ from clean_data import DataCleaner
 
 class FeatureGenerator:
     def __init__(self, df):
-        self.repeated_features = ['GameId', 'PlayId', 'YardLine', 'Quarter', 'PossessionTeam',
-                                  'Down', 'Distance', 'FieldPosition', 'OffenseFormation',
-                                  'OffensePersonnel', 'DefendersInTheBox', 'DefensePersonnel',
-                                  'PlayDirection', 'TimeHandoff', 'TimeSnap', 'Yards',
-                                  'HomeTeamAbbr', 'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf',
-                                  'GameWeather']
-        self.unique_features = [col for col in df.columns if col not in self.repeated_features]
+        self.response = ["Yards"]
+        self.time_features = ['TimeHandoff', 'TimeSnap']
+        # repeated features that we want to keep in X; PlayId for index
+        self.repeated_features = ['PlayId', 'YardLine', 'Quarter', 'PossessionTeam', 'Down',
+                                  'Distance', 'OffenseFormation', 'OffensePersonnel', 'Yards',
+                                  'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
+                                  'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather']
 
-    def feature_a(self, play_df):
-        return play_df["PlayId2"].unique()
+    def f_yardsTillNow(self, df):
+        pass
 
-    def feature_b(self, play_df):
-        return play_df["PlayId2"].unique()
+    def f_snow(self, df):
+        pass
 
-    # def feature_isRusher(self, df):
-    #     # Create a variable if the player is the rusher
-    #     df["Is_rusher"] = df["NflId"] == df["NflIdRusher"]
+    def f_distanceToOpposingTeam(self, df):
+        pass
+
+    def f_isOpening(self, df):
+        pass
+
+    def f_openingSize(self, df):
+        pass
+
+    def f_specialYardIndicators(self, df):
+        # First and ten/15/20
+        pass
+
+    def f_shortRunSetup(self, df):
+        # everyone is on line of scrimmage, see plots
+        pass
+
+    def f_timeTillHandoff(self, df):
+        pass
+
+    def f_positionOfRunner(self, df):
+        pass
+
+    def f_distanceToGoal(self, df):
+        # should replace YardLine
+        pass
 
     def new_features(self, df):
         out = {}
         methods = [method for method in dir(self)
-                   if callable(getattr(self, method)) if method.startswith('feature')]
+                   if callable(getattr(self, method)) if method.startswith('f_')]
         for method in methods:
-            out[method[8:]] = getattr(self, method)(df)
+            out[method[2:]] = getattr(self, method)(df)
         return pd.Series(out)
 
     def make_features(self, df):
@@ -50,14 +73,16 @@ class FeatureGenerator:
         # compute new features based on data.frame
         extractedFeatures = df.groupby('PlayId').apply(self.new_features)
         out = out.set_index('PlayId').join(extractedFeatures)
-        return out
+        x = out.drop(columns=self.response)
+        y = out[self.response]
+        return x, y, out.index.values
 
 
 if __name__ == "__main__":
     data = pd.read_csv('../input/train.csv', low_memory=False)
     cleaner = DataCleaner(data)
     data = cleaner.clean_data(data)
-    data["PlayId2"] = data["PlayId"]  # just for testing; check group
+    # data["PlayId2"] = data["PlayId"]  # just for testing; check group
     ctor = FeatureGenerator(data)  # feature constructor
-    features = ctor.make_features(data)
-    features.head()
+    x, y, playid = ctor.make_features(data)
+
