@@ -6,10 +6,14 @@ Feature Generation Function(s)
 4. In the end, will have one row per PLAY
 
 NOTE:
-    All feature functions need to start with "f_" and will be called in
+    All (finished) feature functions need to start with "f_" and will be called in
     ALPHABETICAL order. If make features using the features...well, it gets
     more complicated. Probably need a second order "new_features_2" that calls
     on the produced features etc.
+NOTE:
+    You can provide list of features to make_features, these are the feature names
+    and need to match the functions. The "f_" will be appended in the function to
+    make creating the feature list nicer/simpler. Naming will be important still.
 """
 
 import pandas as pd
@@ -26,53 +30,59 @@ class FeatureGenerator:
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather']
 
-    def f_yardsTillNow(self, df):
+    def yardsTillNow(self, df):
         # will we be able to do this on the test data?
         pass
 
-    def f_snow(self, df):
+    def snow(self, df):
         pass
 
-    def f_distanceToOpposingTeam(self, df):
+    def distanceToOpposingTeam(self, df):
         pass
 
-    def f_isOpening(self, df):
+    def isOpening(self, df):
         pass
 
-    def f_openingSize(self, df):
+    def openingSize(self, df):
         pass
 
-    def f_specialYardIndicators(self, df):
+    def specialYardIndicators(self, df):
         # First and ten/15/20
         pass
 
-    def f_shortRunSetup(self, df):
+    def shortRunSetup(self, df):
         # everyone is on line of scrimmage, see plots
         pass
 
-    def f_timeTillHandoff(self, df):
+    def timeTillHandoff(self, df):
         pass
 
-    def f_positionOfRunner(self, df):
+    def positionOfRunner(self, df):
         pass
 
-    def f_distanceToGoal(self, df):
+    def distanceToGoal(self, df):
         # should replace YardLine
         pass
 
-    def new_features(self, df):
+    def f_test(self, df):
+        return 1
+
+    def new_features(self, df, features):
+        if features is None:
+            methods = [method for method in dir(self)
+                       if callable(getattr(self, method)) if method.startswith('f_')]
+        else:
+            methods = ["f_" + feature for feature in features]
         out = {}
-        methods = [method for method in dir(self)
-                   if callable(getattr(self, method)) if method.startswith('f_')]
         for method in methods:
             out[method[2:]] = getattr(self, method)(df)
         return pd.Series(out)
 
-    def make_features(self, df):
+    def make_features(self, df, features=None):
         # select features we want that are the same for each
         out = df[self.repeated_features].drop_duplicates()
         # compute new features based on data.frame
-        extractedFeatures = df.groupby('PlayId').apply(self.new_features)
+        extractedFeatures = df.groupby('PlayId').apply(self.new_features, features)
         out = out.set_index('PlayId').join(extractedFeatures)
         x = out.drop(columns=self.response)
         y = out[self.response]
@@ -83,7 +93,8 @@ if __name__ == "__main__":
     data = pd.read_csv('../input/train.csv', low_memory=False)
     cleaner = DataCleaner(data)
     data = cleaner.clean_data(data)
-    # data["PlayId2"] = data["PlayId"]  # just for testing; check group
     ctor = FeatureGenerator(data)  # feature constructor
+    x, y, playid = ctor.make_features(data, ["test"])
+    x.head()
     x, y, playid = ctor.make_features(data)
 
