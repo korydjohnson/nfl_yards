@@ -20,13 +20,14 @@ class FeatureGenerator:
     def __init__(self, df):
         self.response = ["Yards"]
         self.time_features = ['TimeHandoff', 'TimeSnap']
-        # repeated features that we want to keep in X; PlayId for index
+        # repeated features; PlayId for index; Yards for response
         self.repeated_features = ['PlayId', 'YardLine', 'Quarter', 'PossessionTeam', 'Down',
                                   'Distance', 'OffenseFormation', 'OffensePersonnel', 'Yards',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather']
 
     def f_yardsTillNow(self, df):
+        # will we be able to do this on the test data?
         pass
 
     def f_snow(self, df):

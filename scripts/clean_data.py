@@ -99,7 +99,7 @@ class DataCleaner:
 
         for col in self.categoricals:
             df.fillna({col: "Other"}, inplace=True)  # fill missing, will be given -1 next
-            df[col] = pd.Categorical(df[col], categories=self.categories[col]).codes
+            df[col] = pd.Categorical(df[col], categories=self.categories[col]).codes + 2
 
     def clean_data(self, df):
         # compute player height
@@ -145,3 +145,4 @@ if __name__ == "__main__":
     dfClean = cleaner.clean_data(data)
     for c in dfClean.columns:
         print(dfClean[c].sample(10))
+

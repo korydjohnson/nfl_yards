@@ -1,6 +1,8 @@
 """
 Creating function to clean training and test data for nfl_yards
 
+This is more the "piece things together" file; so random code chunks etc
+
 Contains older code, more copy paste from others, not final
 
 1. Training data can be cleaned all-together
@@ -21,6 +23,23 @@ Cleaning Function
 2. Don't expect to be relevant: "HomeScoreBeforePlay", "VisitorScoreBeforePlay"
 3. Compress categories: StadiumType, Turf, Weather,
 """
+
+
+# Missing data
+data.isnull().sum(axis=0)
+missDir = data.Dir.isnull()
+# all missing values are from strong safeties...I'm going to assume they aren't moving
+data.Position[missDir]
+missOr = data.Orientation.isnull()
+# tight ends and strong safeties
+data.Position[missOr]
+data[["PlayId", "Position", "Dir", "Orientation"]][missOr]
+
+
+import matplotlib.pyplot
+# why are there more around 0 and 180? figured it'd be around 90 and 270... lots of people
+# are looking across the field, not down it.
+matplotlib.pyplot.hist(data.Dir)
 
 """
 helper objects for cleaning Pipeline
