@@ -25,6 +25,16 @@ class DataCleaner:
         self.categories = {col: [val for val in df[col].unique() if pd.notna(val)]
                            for col in self.categoricals}
 
+        self.categorical_imputeVal = {
+            'PossessionTeam': 'NE', 'FieldPosition': 'BUF',
+            'HomeTeamAbbr': 'SF', 'VisitorTeamAbbr': 'LA',
+            'OffenseFormation': 'SINGLEBACK',
+            'OffensePersonnel': '1 RB, 1 TE, 3 WR',
+            'DefensePersonnel': '4 DL, 2 LB, 5 DB',
+            'Down': 1, 'Quarter': 1,
+            'Turf': 'grass', 'GameWeather': 'overcast'
+        }
+
         # Columns to Delete:
         self.dropColumns = ["GameClock", "DisplayName", "JerseyNumber", "Season",
                             "PlayerBirthDate", "PlayerCollegeName", "Stadium",
@@ -51,6 +61,12 @@ class DataCleaner:
 
         # DefendersInTheBox
         self.defenders_imputeVal = df.DefendersInTheBox.mean()
+
+        # Orientation
+        self.orientation_imputeVal = df.Orientation.mean()
+
+        # Dir
+        self.dir_imputeVal = df.Dir.mean()
 
         # Turf --> expect irrelevant
         turfs = ['Field Turf', 'A-Turf Titan', 'Grass', 'UBU Sports Speed S5-M',
@@ -98,7 +114,7 @@ class DataCleaner:
             df[col].map(self.map_Teams)  # clean names
 
         for col in self.categoricals:
-            df.fillna({col: "Other"}, inplace=True)  # fill missing, will be given -1 next
+            df.fillna({col: self.categorical_imputeVal[col]}, inplace=True)  # fill missing with largest category
             df[col] = pd.Categorical(df[col], categories=self.categories[col]).codes
 
     def clean_data(self, df):
@@ -111,6 +127,12 @@ class DataCleaner:
 
         # missing defenders values imputed
         df.DefendersInTheBox.fillna(self.defenders_imputeVal, inplace=True)
+
+        # missing orientation imputed
+        df.Orientation.fillna(self.orientation_imputeVal, inplace=True)
+
+        # missing dir values imputed
+        df.Dir.fillna(self.dir_imputeVal, inplace=True)
 
         # clean stadium types; currently only consider outdoor
         df.fillna({"StadiumType": "Other"}, inplace=True)
