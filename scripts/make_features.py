@@ -17,7 +17,7 @@ NOTE:
 """
 
 import pandas as pd
-from clean_data import DataCleaner
+from scripts.clean_data import DataCleaner
 
 
 class FeatureGenerator:
@@ -26,7 +26,7 @@ class FeatureGenerator:
         self.time_features = ['TimeHandoff', 'TimeSnap']
         # repeated features; PlayId for index; Yards for response
         self.repeated_features = ['PlayId', 'YardLine', 'Quarter', 'PossessionTeam', 'Down',
-                                  'Distance', 'OffenseFormation', 'OffensePersonnel', 'Yards',
+                                  'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather']
 
@@ -78,14 +78,13 @@ class FeatureGenerator:
             out[method[2:]] = getattr(self, method)(df)
         return pd.Series(out)
 
-    def make_features(self, df, features=None):
+    def make_features(self, df, is_train, features=None):
         # select features we want that are the same for each
         out = df[self.repeated_features].drop_duplicates()
         # compute new features based on data.frame
         extractedFeatures = df.groupby('PlayId').apply(self.new_features, features)
-        out = out.set_index('PlayId').join(extractedFeatures)
-        x = out.drop(columns=self.response)
-        y = out[self.response]
+        x = out.set_index('PlayId').join(extractedFeatures).copy()
+        y = df[['PlayId']+self.response].drop_duplicates().set_index('PlayId') if is_train else []
         return x, y, out.index.values
 
 
