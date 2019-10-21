@@ -18,7 +18,7 @@ NOTE:
 """
 
 import pandas as pd
-from clean_data import DataCleaner
+from scripts.clean_data import DataCleaner
 
 
 class FeatureGenerator:

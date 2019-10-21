@@ -5,11 +5,13 @@ from sklearn.preprocessing import StandardScaler
 
 import torch
 from network.network import nn1
+from network.network import Preprocessor
 
-from eda_Py.clean_data import DataCleaner
-from eda_Py.make_features import FeatureGenerator
+from scripts.clean_data import DataCleaner
+from scripts.make_features import FeatureGenerator
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 print('- read data')
 df = pd.read_csv('./input/train.csv', low_memory=False)
@@ -24,7 +26,7 @@ predicted = []
 playids = []
 nfolds = 5
 for i in range(nfolds):
-    print('- Fold %d' %(i))
+    print('- Fold %d' %(i+1))
 
     intr = np.where(df['fold']!=i)[0]
     inte = np.where(df['fold']==i)[0]
@@ -38,23 +40,107 @@ for i in range(nfolds):
     df_te = cleaner.clean_data(df_te)
 
     print('  - get features')
-    #featgenerator = FeatureGenerator(df_tr)
-    #xtr, ytr, playid_tr = featgenerator.make_features(df_tr)
-    #xte, yte playid_te = featgenerator.make_features(df_te)
+    featgenerator = FeatureGenerator(df_tr)
+    xtr, ytr, playid_tr = featgenerator.make_features(df_tr, is_train=True)
+    xte, yte, playid_te = featgenerator.make_features(df_te, is_train=True)
 
-    print('  - initialize network')
-    #input_size = len(feat_num) + 2 * len(feat_cat)
-    #net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=256, n_unique=n_unique).to(device)
+    print('  - transform features')
+    feat_num = ['YardLine', 'Distance', 'DefendersInTheBox', 'Week']
+    feat_cat = [
+        'Quarter', 'PossessionTeam', 'Down',
+        'OffenseFormation', 'OffensePersonnel', 'DefensePersonnel',
+        'HomeTeamAbbr', 'VisitorTeamAbbr', 'StadiumType', 'Turf', 'GameWeather',
+    ]
+    preproc = Preprocessor(xtr, ytr, feat_num, feat_cat)
+    xtr, ytr = preproc.transform_data(xtr, ytr, is_train=True)
+    xte, yte = preproc.transform_data(xte, yte, is_train=True)
+    n_unique = xtr[1].max(0).values.detach().numpy() + 1
+
+    # input_size = len(feat_num) + 2 * len(feat_cat)
+    # net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=128, n_unique=n_unique).to(device)
+    #
+    # for j in range(100):
+    #     net.train_epochs(nepochs=1, X=xtr, y=ytr)
+    #     loss = net.eval_model(xte, yte)
+    #     print('  - iter %d - loss=%.5f' % (j+1, loss))
 
     print('  - train network')
-    #net.train_epochs(nepochs=100, X=xtr, y=ytr)
-    #loss = net.eval_model(xte, yte)
-    #print('  - iter %d - loss=%.f' % (i, loss))
+    nbags = 3
+    input_size = len(feat_num) + 2 * len(feat_cat)
+    preds = np.zeros(yte.shape)
 
-    #observed.append(yte)
-    #predicted.append(net.predict(xte))
-    #playids.append(playid_te)
+    for j in range(nbags):
+        print('  - bag %d' %(j+1))
+        net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=128, n_unique=n_unique).to(device)
+        net.train_epochs(nepochs=20, X=xtr, y=ytr)
+        preds += net.predict(xte).cpu().detach().numpy()
 
-score = np.mean((y-pred)**2)
-print('-  CV-Score=%.4f' %(score))
+    preds /= nbags
+    loss = np.mean((yte.cpu().detach().numpy()-preds)**2)
+    print('  - CRPS=%.5f' % (loss))
 
+    observed.append(yte.cpu().detach().numpy())
+    predicted.append(preds)
+    playids.append(playid_te)
+
+
+print('- compute overall CV score')
+observed = np.concatenate(observed)
+predicted = np.concatenate(predicted)
+playids = np.concatenate(playids)
+
+loss = np.mean((observed-predicted)**2)
+print('- CRPS=%.5f' %(loss))
+
+print('Done!!!')
+
+# - read data
+# - merge cv folds to train data
+# - Fold 1
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01400
+# - Fold 2
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01436
+# - Fold 3
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01344
+# - Fold 4
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01373
+# - Fold 5
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01375
+# - compute overall CV score
+# - CRPS=0.01386
+# Done!!!
