@@ -4,7 +4,7 @@ author: "Kory D. Johnson"
 date: 'Last Compiled `r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document:
-    code_folding: show
+     code_folding: show
     highlight: tango
     number_sections: yes
     theme: cosmo
@@ -34,8 +34,6 @@ This file
 ```{r}
 library(tidyverse)
 library(magrittr)
-library(MASS)
-library(rai)
 ```
 
 ### Load Data {-}

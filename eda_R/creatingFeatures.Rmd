@@ -1,0 +1,74 @@
+---
+title: "EDA for nfl_yards"
+author: "Kory D. Johnson"
+date: 'Last Compiled `r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               comment = "",
+               strip.white = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               out.width = "70%",
+               fig.align = "center")
+```
+
+## Topic
+
+Defining features. Here because faster to iterate than python.
+
+## Set Up  {.tabset .tabset-fade}
+
+### Packages/Files {-}
+
+```{r}
+library(tidyverse)
+library(magrittr)
+```
+
+### Load Data {-}
+
+```{r, cache=T}
+loadData <- function(fileName = "train.csv", ...) {
+  file = paste("../input", fileName, sep="/")
+  data.table::fread(file, ...) %>% 
+    as_tibble()
+}
+df = loadData("trainClean.csv")
+```
+
+# Features w/o Players
+
+## Distance to Goal
+
+```{r}
+dfGoal = df %>% 
+  select(YardLine, PossessionTeam, FieldPosition, PlayDirection, HomeTeamAbbr, VisitorTeamAbbr) %>% 
+  distinct()
+dfGoal
+```
+
+if PlayDirection == left, then heading toward home endzone. else visitor
+
+YardsToGoal = YardLine + 50*onOtherSide
+onOther: head left but on Visitor, or head right and on home
+
+Actually, totally wrong. Endzone is defined by who has the ball. The image online is misleading. You want to be in your opponents zone (closer to goal)
+
+```{r}
+dfToGoal = dfGoal %>% 
+  mutate(YardsToGoal = YardLine + 50*(PossessionTeam==FieldPosition))
+dfToGoal
+```
+
+Check With Plots

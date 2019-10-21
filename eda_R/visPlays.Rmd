@@ -1,0 +1,78 @@
+---
+title: "Notes on "
+author: "Kory D. Johnson"
+date: 'Last Compiled `r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               comment = "",
+               strip.white = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               out.width = "70%",
+               fig.align = "center")
+```
+
+## Topic
+
+This file 
+
+## Set Up  {.tabset .tabset-fade}
+
+### Packages/Files {-}
+
+```{r}
+library(tidyverse)
+library(magrittr)
+```
+
+### Load Data {-}
+
+```{r, cache=T}
+loadData <- function(fileName = "train.csv", ...) {
+  file = paste("../input", fileName, sep="/")
+  data.table::fread(file, ...) %>% 
+    as_tibble()
+}
+df = loadData("trainClean.csv")
+```
+
+# Plotting Function
+
+line of scrimmage isn't necessarily YardsToGoal, depnds on the side and direction of play.
+If PlayDirection == right and in opponents field, then LOS is on right
+If PlayDirection == right and in your field, then LOS is on Left
+If PlayDirection == left and in opponents field, then LOS is on Left
+If PlayDirection == leftand in your field, then LOS is on right.
+Need to either add 10 or subtract 10 for endzone...
+
+```{r}
+dfPlay = filter(df, PlayId == df$PlayId[1]) %>% 
+  mutate(YardsToGoal = YardLine + (100-2*YardLine)*(PossessionTeam==FieldPosition),
+         LOS_Side = ifelse((PlayDirection=="right" & PossessionTeam==FieldPosition) |
+                             (PlayDirection=="left" & PossessionTeam!=FieldPosition),
+                           "left", "right"),
+         LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
+select(dfPlay, YardLine, YardsToGoal, LineOfScrimmage)
+ggplot(dfPlay) +
+  geom_point(aes(X, Y, color=Team)) +
+  geom_vline(aes(xintercept=LineOfScrimmage), color="yellow") +
+  geom_vline(aes(xintercept=10), color="grey") +
+  geom_vline(aes(xintercept=110), color="grey") +
+  coord_cartesian(xlim = c(0,120), ylim=c(0,53.3), expand=F) +
+  labs(title = paste("Offense", dfPlay$PossessionTeam, "; ",
+                     "PlayDirection", dfPlay$PlayDirection, "; ",
+                     "FieldPosition", dfPlay$FieldPosition, "; ",
+                     "HomeTeam", dfPlay$HomeTeamAbbr),
+       subtitle = paste("YardsToGoal", dfPlay$YardsToGoal))
+```

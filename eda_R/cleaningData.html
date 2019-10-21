@@ -233,7 +233,7 @@ window.initializeCodeFolding = function(show) {
 
     // create a collapsable div to wrap the code in
     var div = $('<div class="collapse r-code-collapse"></div>');
-    if (show || $(this)[0].classList.contains('fold-show'))
+    if (show)
       div.addClass('in');
     var id = 'rcode-643E0F36' + currentIndex++;
     div.attr('id', id);
@@ -414,6 +414,7 @@ code {
 }
 img {
   max-width:100%;
+  height: auto;
 }
 .tabbed-pane {
   padding-top: 12px;
@@ -1244,18 +1245,18 @@ South Southwest       Southeast       Southwest       SouthWest
 <a class="sourceLine" id="cb44-5" data-line-number="5">dfDirSpeed <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb44-6" data-line-number="6"><span class="st">  </span><span class="kw">select</span>(PlayId, WindSpeed, WindDirection)</a></code></pre></div>
 <pre><code># A tibble: 3,102 x 3
-      PlayId WindSpeed WindDirection
-       &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt;        
- 1 9.97e-311 13        SSW          
- 2 9.97e-311 13        SSW          
- 3 9.97e-311 13        SSW          
- 4 9.97e-311 13        SSW          
- 5 9.97e-311 13        SSW          
- 6 9.97e-311 13        SSW          
- 7 9.97e-311 13        SSW          
- 8 9.97e-311 13        SSW          
- 9 9.97e-311 13        SSW          
-10 9.97e-311 13        SSW          
+   PlayId         WindSpeed WindDirection
+   &lt;int64&gt;        &lt;chr&gt;     &lt;chr&gt;        
+ 1 20171001000073 13        SSW          
+ 2 20171001000073 13        SSW          
+ 3 20171001000073 13        SSW          
+ 4 20171001000073 13        SSW          
+ 5 20171001000073 13        SSW          
+ 6 20171001000073 13        SSW          
+ 7 20171001000073 13        SSW          
+ 8 20171001000073 13        SSW          
+ 9 20171001000073 13        SSW          
+10 20171001000073 13        SSW          
 # … with 3,092 more rows</code></pre>
 <div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb46-1" data-line-number="1"><span class="kw">table</span>(dfDirSpeed<span class="op">$</span>WindSpeed)</a></code></pre></div>
 <pre><code>

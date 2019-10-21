@@ -5,6 +5,7 @@ Creating function to clean training and test data for nfl_yards
 3. Require suitable globals to be used on train/test
 4. Need to ensure that don't get errors if get category we haven't seen before.
    True both for cleaning and for models used.
+5. Have to have all team abbreviations with same category numbers (check equivalence for features).
 
 Cleaning Function
 1. Features not cleaned because deemed a-priori irrelevant
@@ -12,6 +13,7 @@ Cleaning Function
 3. Compress categories: StadiumType, Turf, GameWeather
 """
 
+import numpy as np
 import pandas as pd
 
 
@@ -24,6 +26,18 @@ class DataCleaner:
                              "Quarter", "Turf", "GameWeather"]
         self.categories = {col: [val for val in df[col].unique() if pd.notna(val)]
                            for col in self.categoricals}
+        # fixing abbreviations
+        self.map_Teams = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU"}
+
+        # don't miss a team and all categories for teams must match
+        self.col_teams = ["PossessionTeam", "FieldPosition", "HomeTeamAbbr", "VisitorTeamAbbr"]
+        for col in self.col_teams:
+            for team in self.map_Teams.keys():
+                self.categories[col][self.categories[col] == team] = self.map_Teams[team]
+        teams = set().union(self.categories["PossessionTeam"], self.categories["FieldPosition"],
+                            self.categories["HomeTeamAbbr"], self.categories["VisitorTeamAbbr"])
+        for col in self.col_teams:
+            self.categories[col] = teams
 
         # Need better defaults: NE may not even be playing...
         # Should see which features are relevant before worrying about this
@@ -43,9 +57,6 @@ class DataCleaner:
                             "Location", "WindSpeed", "WindDirection",
                             "HomeScoreBeforePlay", "VisitorScoreBeforePlay", "Humidity",
                             "Temperature"]
-
-        # fixing abbreviations
-        self.map_Teams = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU"}
 
         # StadiumType --> expect irrelevant
         outdoor = ['Outdoor', 'Outdoors', 'Cloudy', 'Heinz Field', 'Outdor',
@@ -111,12 +122,10 @@ class DataCleaner:
         self.categories["GameWeather"] = newNames
 
     def create_categoricals(self, df):
-        columns = ["PossessionTeam", "FieldPosition", "HomeTeamAbbr", "VisitorTeamAbbr"]
-        for col in columns:
-            df[col].map(self.map_Teams)  # clean names
+        df.replace(self.map_Teams)
 
         for col in self.categoricals:
-            df.fillna({col: self.categorical_imputeVal[col]}, inplace=True)  # fill missing with largest category
+            df.fillna({col: self.categorical_imputeVal[col]}, inplace=True)  # fill is most frequent
             df[col] = pd.Categorical(df[col], categories=self.categories[col]).codes
 
     def clean_data(self, df):
@@ -136,6 +145,9 @@ class DataCleaner:
         # missing dir values imputed
         df.Dir.fillna(self.dir_imputeVal, inplace=True)
 
+        # missing field position occurs when on 50 yard line
+        df.FieldPosition = np.where(df.YardLine == 50, df.PossessionTeam, df.FieldPosition)
+
         # clean stadium types; currently only consider outdoor
         df.fillna({"StadiumType": "Other"}, inplace=True)
         df["StadiumType"] = df["StadiumType"].map(self.map_StadiumType, na_action='ignore')
@@ -150,21 +162,21 @@ class DataCleaner:
         df["GameWeather"] = df["GameWeather"].map(self.map_GameWeather, na_action='ignore')
 
         # play direction
-        df["PlayDirection"] = df["PlayDirection"].map({"left": 1, "right": 0}, na_action="ignore")
+        # df["PlayDirection"] = df["PlayDirection"].map({"left": 1, "right": 0}, na_action="ignore")
 
         # update categoricals in-place, done after collapsing categories
         self.create_categoricals(df)
 
         # sort and drop irrelevant columns
         df.sort_values(by=["GameId", "PlayId"]).reset_index()
+        df.set_index("PlayId", inplace=True)
         df.drop(self.dropColumns, inplace=True, axis=1)
-
         return df
 
 
 if __name__ == "__main__":
     data = pd.read_csv('../input/train.csv', low_memory=False)
-    # df = data.copy(deep=True)
+    df = data.copy(deep=True)
     cleaner = DataCleaner(data)
     dfClean = cleaner.clean_data(data)
     for c in dfClean.columns:
