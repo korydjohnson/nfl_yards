@@ -125,7 +125,8 @@ class DataCleaner:
         df.replace(self.map_Teams)
 
         for col in self.categoricals:
-            df.loc[~df[col].isin(self.categories[col]),col] = self.categorical_imputeVal[col] # fill missing or new categories with most frequent
+            # fill missing or new categories with most frequent
+            df.loc[~df[col].isin(self.categories[col]), col] = self.categorical_imputeVal[col]
             df[col] = pd.Categorical(df[col], categories=self.categories[col]).codes
 
     def clean_data(self, df):

@@ -39,16 +39,22 @@ library(magrittr)
 ### Load Data {-}
 
 ```{r, cache=T}
-loadData <- function(folderName, fileName, ...) {
-  if (.Platform$OS.type == "windows") {
-  dataPath = "D:/Data"
-  } else {
-    dataPath = "/media/kory/DATA/Data"
-  }
-  file = paste(dataPath, folderName, fileName, sep="/")
-  data.table::fread(file, ...)
+loadData <- function(fileName = "train.csv", ...) {
+  file = paste("../input", fileName, sep="/")
+  data.table::fread(file, ...) %>% 
+    as_tibble()
 }
+df = loadData("trainClean.csv")
 ```
+
+# Missing Values
+
+```{r}
+df %>% 
+  select(PossessionTeam, FieldPosition, HomeTeamAbbr, VisitorTeamAbbr) %>% 
+  summarise_all(function(col) sum(is.na(col)))
+```
+
 
 # EDA {.tabset .tabset-fade}
 

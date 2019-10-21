@@ -52,23 +52,49 @@ df = loadData("trainClean.csv")
 ## Distance to Goal
 
 ```{r}
-dfGoal = df %>% 
-  select(YardLine, PossessionTeam, FieldPosition, PlayDirection, HomeTeamAbbr, VisitorTeamAbbr) %>% 
-  distinct()
-dfGoal
+df = df %>% 
+  mutate(YardsToGoal = YardLine + (100-2*YardLine)*(PossessionTeam==FieldPosition))
+df %>% 
+  distinct(PlayId, .keep_all=T) %>% 
+  ggplot(aes(x=YardsToGoal)) +
+  geom_histogram()
 ```
 
-if PlayDirection == left, then heading toward home endzone. else visitor
+Why is 75 ish so much more common?
 
-YardsToGoal = YardLine + 50*onOtherSide
-onOther: head left but on Visitor, or head right and on home
-
-Actually, totally wrong. Endzone is defined by who has the ball. The image online is misleading. You want to be in your opponents zone (closer to goal)
-
+## Line of Scrimmage
 ```{r}
-dfToGoal = dfGoal %>% 
-  mutate(YardsToGoal = YardLine + 50*(PossessionTeam==FieldPosition))
-dfToGoal
+df %<>% 
+  mutate(LOS_Side = ifelse((PlayDirection=="right" & PossessionTeam==FieldPosition) |
+                             (PlayDirection=="left" & PossessionTeam!=FieldPosition),
+                           "left", "right"),
+         LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
+dfLOS = df %>% 
+  group_by(PlayId) %>% 
+  summarise(DistanceToLOS = mean(abs(X-LineOfScrimmage))) %>% 
+  arrange(desc(DistanceToLOS))
+ggplot(dfLOS) +
+  geom_histogram(aes(DistanceToLOS))
+longDist = dfLOS %>% 
+  pull(PlayId) %>% 
+  head()
+index=1
+plotPlay(filter(df, PlayId==longDist[index]), "DistanceToLOS", dfLOS[1, "DistanceToLOS"])
 ```
 
-Check With Plots
+Checking python data
+```{r}
+dfPy = loadData("trainClean_py.csv") %>% 
+  arrange(desc(DistanceToLOS))
+ggplot(dfPy) +
+  geom_histogram(aes(DistanceToLOS))
+longDist = dfPy %>% 
+  pull(PlayId) %>% 
+  head()
+index=1
+plotPlay(filter(df, PlayId==longDist[index]), "DistanceToLOS", dfPy[1, "DistanceToLOS"])
+dfPy %>% 
+  filter(PlayId==longDist[index]) %>% 
+  select(PossessionTeam, FieldPosition, HomeTeamAbbr, VisitorTeamAbbr, DistanceToGoal, DistanceToLOS)
+```
+

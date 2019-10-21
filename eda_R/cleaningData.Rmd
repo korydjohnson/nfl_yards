@@ -361,7 +361,10 @@ df %<>%
       str_extract("^[:digit:]+") %>% 
       as.integer(),
     WindDirection = fct_collapse(WindDirection, !!!directionList),
-    PossessionTeam = fct_recode(PossessionTeam, !!!teamAbbreviations)
+    PossessionTeam = fct_recode(PossessionTeam, !!!teamAbbreviations),
+    FieldPosition = fct_recode(FieldPosition, !!!teamAbbreviations),
+    HomeTeamAbbr = fct_recode(HomeTeamAbbr, !!!teamAbbreviations),
+    VisitorTeamAbbr = fct_recode(VisitorTeamAbbr, !!!teamAbbreviations)
   ) %>% 
   select(-Stadium, -Location)
 data.table::fwrite(df, file = "../input/trainClean.csv")

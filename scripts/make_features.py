@@ -18,7 +18,7 @@ NOTE:
 """
 
 import pandas as pd
-from scripts.clean_data import DataCleaner
+from clean_data import DataCleaner
 
 
 class FeatureGenerator:
@@ -70,7 +70,8 @@ class FeatureGenerator:
 
     def f_DistanceToLOS(self, dfP):
         dfR = dfP.drop_duplicates(self.repeated_features)
-        condition = (dfR.PlayDirection == "right") & (dfR.PossessionTeam == dfR.FieldPosition)
+        condition = ((dfR.PlayDirection == "right") & (dfR.PossessionTeam == dfR.FieldPosition)) \
+            | ((dfR.PlayDirection == "left") & (dfR.PossessionTeam != dfR.FieldPosition))
         los_side = "left" if condition.values else "right"
         los = (dfR.YardLine + 10 if los_side == "left" else 110 - dfR.YardLine).__int__()
         return (dfP.X - los).abs().mean().__float__()
@@ -117,7 +118,9 @@ if __name__ == "__main__":
     dfSub
     x, y, PlayId = ctor.make_features(dfSub)
     x
+    sfSub = dfSub.drop("Yards", axis=1)
     x, PlayId = ctor.make_features(dfSub, test=True)
     x
     x, y, PlayId = ctor.make_features(data)
     x.head()
+    x.to_csv("../input/trainClean_py.csv")

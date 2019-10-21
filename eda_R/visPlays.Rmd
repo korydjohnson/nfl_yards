@@ -64,7 +64,8 @@ dfPlay = filter(df, PlayId == df$PlayId[1]) %>%
                            "left", "right"),
          LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
 select(dfPlay, YardLine, YardsToGoal, LineOfScrimmage)
-ggplot(dfPlay) +
+plotPlay = function(dfPlay, featureName, featureValue) {
+  ggplot(dfPlay) +
   geom_point(aes(X, Y, color=Team)) +
   geom_vline(aes(xintercept=LineOfScrimmage), color="yellow") +
   geom_vline(aes(xintercept=10), color="grey") +
@@ -74,5 +75,6 @@ ggplot(dfPlay) +
                      "PlayDirection", dfPlay$PlayDirection, "; ",
                      "FieldPosition", dfPlay$FieldPosition, "; ",
                      "HomeTeam", dfPlay$HomeTeamAbbr),
-       subtitle = paste("YardsToGoal", dfPlay$YardsToGoal))
+       subtitle = paste(featureName, featureValue, "; ", "Yards", dfPlay$Yards))
+}
 ```
