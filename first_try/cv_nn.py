@@ -25,7 +25,7 @@ observed = []
 predicted = []
 playids = []
 nfolds = 5
-for i in range(1,nfolds):
+for i in range(nfolds):
     print('- Fold %d' %(i+1))
 
     intr = np.where(df['fold']!=i)[0]
@@ -54,10 +54,10 @@ for i in range(1,nfolds):
     preproc = Preprocessor(xtr, ytr, feat_num, feat_cat)
     xtr, ytr = preproc.transform_data(xtr, ytr, is_train=True)
     xte, yte = preproc.transform_data(xte, yte, is_train=True)
-    n_unique = xtr[1].max(axis=0).values.detach().numpy() + 1
+    n_unique = xtr[1].max(0).values.detach().numpy() + 1
 
     # input_size = len(feat_num) + 2 * len(feat_cat)
-    # net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=256, n_unique=n_unique).to(device)
+    # net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=128, n_unique=n_unique).to(device)
     #
     # for j in range(100):
     #     net.train_epochs(nepochs=1, X=xtr, y=ytr)
@@ -71,8 +71,8 @@ for i in range(1,nfolds):
 
     for j in range(nbags):
         print('  - bag %d' %(j+1))
-        net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=256, n_unique=n_unique).to(device)
-        net.train_epochs(nepochs=40, X=xtr, y=ytr)
+        net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=128, n_unique=n_unique).to(device)
+        net.train_epochs(nepochs=20, X=xtr, y=ytr)
         preds += net.predict(xte).cpu().detach().numpy()
 
     preds /= nbags
@@ -99,47 +99,48 @@ print('Done!!!')
 # - Fold 1
 #   - clean data
 #   - get features
-#   - initialize network
+#   - transform features
 #   - train network
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01414
+#   - CRPS=0.01400
 # - Fold 2
 #   - clean data
 #   - get features
-#   - initialize network
+#   - transform features
 #   - train network
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01459
+#   - CRPS=0.01436
 # - Fold 3
 #   - clean data
 #   - get features
-#   - initialize network
+#   - transform features
 #   - train network
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01353
+#   - CRPS=0.01344
 # - Fold 4
 #   - clean data
 #   - get features
-#   - initialize network
+#   - transform features
 #   - train network
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01391
+#   - CRPS=0.01373
 # - Fold 5
 #   - clean data
 #   - get features
-#   - initialize network
+#   - transform features
 #   - train network
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01388
+#   - CRPS=0.01375
 # - compute overall CV score
-# - CRPS=0.01401
+# - CRPS=0.01386
+# Done!!!
