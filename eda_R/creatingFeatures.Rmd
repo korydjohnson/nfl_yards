@@ -69,6 +69,10 @@ df %<>%
                              (PlayDirection=="left" & PossessionTeam!=FieldPosition),
                            "left", "right"),
          LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
+df %>% 
+  distinct(PlayId, .keep_all = T) %>% 
+  ggplot(aes(LineOfScrimmage)) +
+  geom_histogram()
 dfLOS = df %>% 
   group_by(PlayId) %>% 
   summarise(DistanceToLOS = mean(abs(X-LineOfScrimmage))) %>% 
@@ -76,9 +80,8 @@ dfLOS = df %>%
 ggplot(dfLOS) +
   geom_histogram(aes(DistanceToLOS))
 longDist = dfLOS %>% 
-  pull(PlayId) %>% 
-  head()
-index=1
+  pull(PlayId)
+index=20003
 plotPlay(filter(df, PlayId==longDist[index]), "DistanceToLOS", dfLOS[1, "DistanceToLOS"])
 ```
 
@@ -86,6 +89,15 @@ Checking python data
 ```{r}
 dfPy = loadData("trainClean_py.csv") %>% 
   arrange(desc(DistanceToLOS))
+dfPy %>% 
+  ggplot(aes(LineOfScrimmage)) +
+  geom_histogram()
+dfPy %>% 
+  ggplot(aes(DistanceToGoal)) +
+  geom_histogram()
+dfPy %>% 
+  ggplot(aes(DistanceToLOS)) +
+  geom_histogram()
 ggplot(dfPy) +
   geom_histogram(aes(DistanceToLOS))
 longDist = dfPy %>% 

@@ -52,7 +52,7 @@ class DataCleaner:
         }
 
         # Columns to Delete:
-        self.dropColumns = ["GameClock", "DisplayName", "JerseyNumber", "Season",
+        self.dropColumns = ["GameClock", "YardLine", "DisplayName", "JerseyNumber", "Season",
                             "PlayerBirthDate", "PlayerCollegeName", "Stadium",
                             "Location", "WindSpeed", "WindDirection",
                             "HomeScoreBeforePlay", "VisitorScoreBeforePlay", "Humidity",
@@ -162,11 +162,18 @@ class DataCleaner:
         df.fillna({"GameWeather": "Other"}, inplace=True)
         df["GameWeather"] = df["GameWeather"].map(self.map_GameWeather, na_action='ignore')
 
-        # play direction
-        # df["PlayDirection"] = df["PlayDirection"].map({"left": 1, "right": 0}, na_action="ignore")
-
         # update categoricals in-place, done after collapsing categories
         self.create_categoricals(df)
+
+        # generating features that don't depend on play grouping
+        df["DistanceToGoal"] =\
+            df.YardLine + (100 - 2 * df.YardLine) * (df.PossessionTeam == df.FieldPosition)
+
+        los_condition = ((df.PlayDirection == "right") & (df.PossessionTeam == df.FieldPosition)) \
+            | ((df.PlayDirection == "left") & (df.PossessionTeam != df.FieldPosition))
+        los_side = np.where(los_condition, "left", "right")
+        df["LineOfScrimmage"] = \
+            np.where(los_side == "left", df.YardLine + 10, 110 - df.YardLine)
 
         # sort and drop irrelevant columns
         df.sort_values(by=["GameId", "PlayId"]).reset_index()
@@ -177,7 +184,7 @@ class DataCleaner:
 
 if __name__ == "__main__":
     data = pd.read_csv('../input/train.csv', low_memory=False)
-    df = data.copy(deep=True)
+    # df = data.copy(deep=True)
     cleaner = DataCleaner(data)
     dfClean = cleaner.clean_data(data)
     for c in dfClean.columns:

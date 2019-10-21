@@ -75,6 +75,8 @@ plotPlay = function(dfPlay, featureName, featureValue) {
                      "PlayDirection", dfPlay$PlayDirection, "; ",
                      "FieldPosition", dfPlay$FieldPosition, "; ",
                      "HomeTeam", dfPlay$HomeTeamAbbr),
-       subtitle = paste(featureName, featureValue, "; ", "Yards", dfPlay$Yards))
+       subtitle = paste(featureName, featureValue, "; ", 
+                        "Yards", dfPlay$Yards, "; ",
+                        "Down", dfPlay$Down))
 }
 ```

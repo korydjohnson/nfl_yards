@@ -47,7 +47,10 @@ loadData <- function(fileName = "train.csv", ...) {
   data.table::fread(file, ...) %>% 
     as_tibble()
 }
-df = loadData("trainClean.csv")
+theData = loadData("trainClean_py.csv")
+theResponse = loadData("trainResponse_py.csv") %>% 
+  pull(Yards)
+# theData
 ```
 
 # Compare Normal to MLE Beta
@@ -158,7 +161,8 @@ errorOOS = function(theResponse, theData, fncs, k=5) {
 ```
 
 Test
-```{r}  
+```{r}
+df = loadData("trainClean.csv")
 dfSub = df %>% 
   distinct(PlayId, .keep_all = T) %>%
   # select(Yards, Distance, Down) %>% 
@@ -178,7 +182,23 @@ predictCV(theResponse, theData, modelFnc)
 errorOOS(theResponse, theData, list("rai"=rai, "lm"=runLM))
 ```
 
-## Normal {-}
+## Running Linear Models
+
+```{r}
+theResponse2 = log(pmax(theResponse + 15, 0))
+covariates = c("Quarter", "PossessionTeam", "Down", "Distance", "OffenseFormation",
+               "DefendersInTheBox", "Turf", "GameWeather", "DistanceToGoal", "DistanceToLOS")
+categorical = c("Quarter", "PossessionTeam", "Down", "OffenseFormation", "Turf", "GameWeather")
+theData2 = theData %>% 
+  select(covariates) %>% 
+  mutate_at(vars(categorical), as.factor)
+modelFnc = rai
+# modelFnc = runLM
+predictCV(theResponse2, theData2, modelFnc)
+errorOOS(theResponse, theData2, list("rai"=rai, "lm"=runLM))
+```
+
+# Normal {-}
 
 MLE unadjusted
 ```{r}

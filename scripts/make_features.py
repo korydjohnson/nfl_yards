@@ -26,8 +26,8 @@ class FeatureGenerator:
         self.response = ["Yards"]
         self.time_features = ['TimeHandoff', 'TimeSnap']
         # repeated features; PlayId excluded as it's the index; Yards for response
-        self.repeated_features = ['YardLine', 'Quarter', 'PossessionTeam', 'Down',
-                                  'Distance', 'OffenseFormation', 'OffensePersonnel', 'Yards',
+        self.repeated_features = ['Quarter', 'PossessionTeam', 'Down',
+                                  'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather']
         self.dropColumns = ["PlayDirection"]
@@ -63,18 +63,8 @@ class FeatureGenerator:
     def positionOfRunner(self, df):
         pass
 
-    def f_DistanceToGoal(self, dfP):  # should replace YardLine
-        dfR = dfP.drop_duplicates(self.repeated_features)
-        out = dfR.YardLine + (100-2*dfR.YardLine)*(dfR.PossessionTeam == dfR.FieldPosition)
-        return out.__int__()
-
     def f_DistanceToLOS(self, dfP):
-        dfR = dfP.drop_duplicates(self.repeated_features)
-        condition = ((dfR.PlayDirection == "right") & (dfR.PossessionTeam == dfR.FieldPosition)) \
-            | ((dfR.PlayDirection == "left") & (dfR.PossessionTeam != dfR.FieldPosition))
-        los_side = "left" if condition.values else "right"
-        los = (dfR.YardLine + 10 if los_side == "left" else 110 - dfR.YardLine).__int__()
-        return (dfP.X - los).abs().mean().__float__()
+        return (dfP.X - dfP.LineOfScrimmage).abs().mean().__float__()
 
     def new_features(self, df, methods):
         out = {}
@@ -112,8 +102,6 @@ if __name__ == "__main__":
     cleaner = DataCleaner(data)
     data = cleaner.clean_data(data)
     ctor = FeatureGenerator()  # feature constructor
-    x, y, PlayId = ctor.make_features(data, ["DistanceToGoal"])
-    x.head()
     dfSub = data.filter(like="20170907000118", axis=0)
     dfSub
     x, y, PlayId = ctor.make_features(dfSub)
@@ -121,6 +109,9 @@ if __name__ == "__main__":
     sfSub = dfSub.drop("Yards", axis=1)
     x, PlayId = ctor.make_features(dfSub, test=True)
     x
+    x, y, PlayId = ctor.make_features(data, ["DistanceToLOS"])
+    x.head()
     x, y, PlayId = ctor.make_features(data)
     x.head()
     x.to_csv("../input/trainClean_py.csv")
+    y.to_csv("../input/trainResponse_py.csv")
