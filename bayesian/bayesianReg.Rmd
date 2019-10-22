@@ -25,7 +25,7 @@ opts_chunk$set(echo = TRUE,
 
 ## Topic
 
-This file creates some basic Bayesian Regression models for nfl_yards.
+This file creates some basic Regression models for nfl_yards.
 
 ## Set Up  {.tabset .tabset-fade}
 

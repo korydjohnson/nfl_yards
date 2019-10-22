@@ -23,7 +23,7 @@ class DataCleaner:
         # Categorical Columns: update here to include stadium type
         self.categoricals = ["PossessionTeam", "FieldPosition", "HomeTeamAbbr", "VisitorTeamAbbr",
                              "OffenseFormation", "OffensePersonnel", "DefensePersonnel", "Down",
-                             "Quarter", "Turf", "GameWeather"]
+                             "Quarter", "Turf", "GameWeather", "Position"]
         self.categories = {col: [val for val in df[col].unique() if pd.notna(val)]
                            for col in self.categoricals}
         # fixing abbreviations

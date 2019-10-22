@@ -40,9 +40,6 @@ class FeatureGenerator:
     def snow(self, df):
         pass
 
-    def distanceToOpposingTeam(self, df):
-        pass
-
     def isOpening(self, df):
         pass
 
@@ -53,17 +50,33 @@ class FeatureGenerator:
         # First and ten/15/20
         pass
 
-    def shortRunSetup(self, df):
-        # everyone is on line of scrimmage, see plots
-        pass
-
     def timeTillHandoff(self, df):
         pass
 
     def positionOfRunner(self, df):
         pass
 
-    def f_DistanceToLOS(self, dfP):
+    @staticmethod
+    def f_RunnerPos(dfP):
+        return
+
+    @staticmethod
+    def f_DistanceToDef(dfP):
+        dist =
+        runner = dfPlay % > %
+        filter(NflIdRusher == NflId) % > %
+        select(X, Y, Team)
+    blocker = dfPlay % > %
+    filter(Team != runner$Team) % > %
+    mutate(dist=sqrt((X - pull(runner, X)) ^ 2 + (Y - pull(runner, Y)) ^ 2)) % > %
+    summarise(
+        dist=min(dist),
+        blockerId=NflId[which.min(dist)]
+    )
+        return d
+
+    @staticmethod
+    def f_DistanceToLOS(dfP):
         return (dfP.X - dfP.LineOfScrimmage).abs().mean().__float__()
 
     def new_features(self, df, methods):
@@ -102,12 +115,11 @@ if __name__ == "__main__":
     cleaner = DataCleaner(data)
     data = cleaner.clean_data(data)
     ctor = FeatureGenerator()  # feature constructor
-    dfSub = data.filter(like="20170907000118", axis=0)
-    dfSub
-    x, y, PlayId = ctor.make_features(dfSub)
+    dfP = data.filter(like="20170907000118", axis=0)
+    x, y, PlayId = ctor.make_features(dfP)
     x
-    sfSub = dfSub.drop("Yards", axis=1)
-    x, PlayId = ctor.make_features(dfSub, test=True)
+    dfP = dfP.drop("Yards", axis=1)
+    x, PlayId = ctor.make_features(dfP, test=True)
     x
     x, y, PlayId = ctor.make_features(data, ["DistanceToLOS"])
     x.head()

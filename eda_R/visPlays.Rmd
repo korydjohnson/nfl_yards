@@ -64,19 +64,80 @@ dfPlay = filter(df, PlayId == df$PlayId[1]) %>%
                            "left", "right"),
          LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
 select(dfPlay, YardLine, YardsToGoal, LineOfScrimmage)
-plotPlay = function(dfPlay, featureName, featureValue) {
-  ggplot(dfPlay) +
-  geom_point(aes(X, Y, color=Team)) +
-  geom_vline(aes(xintercept=LineOfScrimmage), color="yellow") +
-  geom_vline(aes(xintercept=10), color="grey") +
-  geom_vline(aes(xintercept=110), color="grey") +
-  coord_cartesian(xlim = c(0,120), ylim=c(0,53.3), expand=F) +
-  labs(title = paste("Offense", dfPlay$PossessionTeam, "; ",
-                     "PlayDirection", dfPlay$PlayDirection, "; ",
-                     "FieldPosition", dfPlay$FieldPosition, "; ",
-                     "HomeTeam", dfPlay$HomeTeamAbbr),
-       subtitle = paste(featureName, featureValue, "; ", 
-                        "Yards", dfPlay$Yards, "; ",
-                        "Down", dfPlay$Down))
+plotPlay = function(dfPlay, featureName=NULL, featureValue=NULL, runner=T) {
+  dfRun = dfPlay %>% 
+    filter(Position == "QB" | NflIdRusher == NflId)
+  p = ggplot(dfPlay) +
+    geom_point(aes(X, Y, color=Team)) +
+    geom_vline(aes(xintercept=LineOfScrimmage), color="yellow") +
+    geom_vline(aes(xintercept=10), color="grey") +
+    geom_vline(aes(xintercept=110), color="grey") +
+    coord_cartesian(xlim = c(0,120), ylim=c(0,53.3), expand=F) +
+    theme(legend.title=element_blank()) +
+    labs(title = paste("Offense", dfPlay$PossessionTeam, "; ",
+      "PlayDirection", dfPlay$PlayDirection, "; ",
+      "FieldPosition", dfPlay$FieldPosition, "; ",
+      "HomeTeam", dfPlay$HomeTeamAbbr),
+      subtitle = paste(featureName, round(featureValue,2), "; ", 
+        "Yards", dfPlay$Yards, "; ",
+        "Down", dfPlay$Down)) +
+    geom_point(data=dfRun, aes(X, Y, color=Position))
+  if (runner) plotRunner_add(p, dfPlay) else p
+}
+plotRunner_add = function(p, dfPlay) {
+  dfRunner = dfPlay %>% 
+    filter(NflIdRusher == NflId) %>% 
+    mutate(
+      dirRad = ((Dir + 90)%%360)/180,
+      orRad = ((Orientation + 90)%%360)/180,
+      Xd = X + S*cos(dirRad*pi),
+      Yd = Y + S*sin(dirRad*pi),
+      Xo = X + S/2*cos(orRad*pi),
+      Yo = Y + S/2*sin(orRad*pi)
+    )
+  p +
+    geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xd, yend=Yd, color="RB"), cex=1) +
+    geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xo, yend=Yo, color="RB"), cex=1)
 }
 ```
+
+# Runner
+
+Where is the runner? Where is the QB? What is the runner's position?
+
+```{r}
+dfPlay %>% 
+  filter(Position == "QB")
+dfPlay %>% 
+  filter(NflIdRusher == NflId)
+dfRun = dfPlay %>% 
+  filter(Position == "QB" | NflIdRusher == NflId)
+plotPlay(dfPlay) +
+  geom_point(data=dfRun, aes(X, Y, color=Position))
+```
+
+Which way is runner facing? 
+```{r}
+plotRunner_add = function(p, dfPlay) {
+  dfRunner = dfPlay %>% 
+    filter(NflIdRusher == NflId) %>% 
+    mutate(
+      dirRad = ((Dir + 90)%%360)/180,
+      orRad = ((Orientation + 90)%%360)/180,
+      Xd = X + S*cos(dirRad*pi),
+      Yd = Y + S*sin(dirRad*pi),
+      Xo = X + S/2*cos(orRad*pi),
+      Yo = Y + S/2*sin(orRad*pi)
+    )
+  p +
+    geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xd, yend=Yd, color="RB"), cex=1) +
+    geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xo, yend=Yo, color="RB"), cex=1)
+}
+dfRun = getRunnerDir(dfPlay)
+dfRun = getRunnerDir(dfPlay, "Orientation")
+p = plotPlay(dfPlay)
+plotPlay(dfPlay) %>% 
+  plotRunner_add(dfPlay)
+```
+
+

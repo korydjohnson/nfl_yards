@@ -81,8 +81,12 @@ ggplot(dfLOS) +
   geom_histogram(aes(DistanceToLOS))
 longDist = dfLOS %>% 
   pull(PlayId)
-index=20003
-plotPlay(filter(df, PlayId==longDist[index]), "DistanceToLOS", dfLOS[1, "DistanceToLOS"])
+index=1
+dfPlay = filter(df, PlayId==longDist[index])
+plotPlay(dfPlay, "DistanceToLOS", dfLOS[1, "DistanceToLOS"])
+dfPlay %>% 
+  filter(NflId==NflIdRusher) %>% 
+  select(Dir, Orientation, S)
 ```
 
 Checking python data
@@ -106,7 +110,36 @@ longDist = dfPy %>%
 index=1
 plotPlay(filter(df, PlayId==longDist[index]), "DistanceToLOS", dfPy[1, "DistanceToLOS"])
 dfPy %>% 
-  filter(PlayId==longDist[index]) %>% 
-  select(PossessionTeam, FieldPosition, HomeTeamAbbr, VisitorTeamAbbr, DistanceToGoal, DistanceToLOS)
+  filter(PlayId==longDist[index])
+```
+
+# Features with Players
+
+test df
+```{r}
+dfPlay = filter(df, PlayId == df$PlayId[1])
+dfPlay
+plotPlay(dfPlay)
+```
+
+## Distance to Defender
+
+find runner; get opposing team, min l2 dist
+
+determine offense by who **actually runs**; see play with largest distance to LOS
+
+```{r}
+runner = dfPlay %>% 
+  filter(NflIdRusher == NflId) %>% 
+  select(X, Y, Team)
+blocker = dfPlay %>% 
+  filter(Team != runner$Team) %>% 
+  mutate(dist = sqrt((X-pull(runner,X))^2 + (Y-pull(runner,Y))^2)) %>% 
+  summarise(
+    dist = min(dist),
+    blockerId = NflId[which.min(dist)]
+  )
+plotPlay(dfPlay)
+
 ```
 
