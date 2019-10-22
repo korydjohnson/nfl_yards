@@ -18,7 +18,8 @@ NOTE:
 """
 
 import pandas as pd
-from clean_data import DataCleaner
+import numpy as np
+from scripts.clean_data import DataCleaner
 
 
 class FeatureGenerator:
@@ -29,7 +30,8 @@ class FeatureGenerator:
         self.repeated_features = ['Quarter', 'PossessionTeam', 'Down',
                                   'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
-                                  'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather']
+                                  'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather',
+                                  'DistanceToGoal', 'LineOfScrimmage']
         self.dropColumns = ["PlayDirection"]
 
     def yardsTillNow(self, df):
@@ -56,27 +58,34 @@ class FeatureGenerator:
     def positionOfRunner(self, df):
         pass
 
-    @staticmethod
-    def f_RunnerPos(dfP):
-        return
+    def f_RusherDistanceToLOS(self, dfP):
+        s = dfP[dfP['NflId']==dfP['NflIdRusher']]
+        x = (s['LineOfScrimmage'] - s['X'])* np.where(s['PlayDirection']=='right', 1, -1)[0]
+        return x
 
-    @staticmethod
-    def f_DistanceToDef(dfP):
-        dist =
-        runner = dfPlay % > %
-        filter(NflIdRusher == NflId) % > %
-        select(X, Y, Team)
-    blocker = dfPlay % > %
-    filter(Team != runner$Team) % > %
-    mutate(dist=sqrt((X - pull(runner, X)) ^ 2 + (Y - pull(runner, Y)) ^ 2)) % > %
-    summarise(
-        dist=min(dist),
-        blockerId=NflId[which.min(dist)]
-    )
-        return d
+    def f_RusherDistanceToEndzone(self, dfP):
+        s = dfP[dfP['NflId']==dfP['NflIdRusher']]
+        x = 110-s['X'].values[0] if s['PlayDirection'].values[0]=='right' else s['X'].values[0]
+        return x
 
-    @staticmethod
-    def f_DistanceToLOS(dfP):
+    def f_RusherAcceleration(self, dfP):
+        s = dfP[dfP['NflId']==dfP['NflIdRusher']]
+        x = s['A'].values[0]
+        return x
+
+    def f_RusherHorizontalSpeed(self, dfP):
+        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        radian_angle = (90 - s['Dir']) * np.pi / 180.0
+        x = np.abs(s['S'] * np.cos(radian_angle)).values[0]
+        return x
+
+    def f_RusherVerticalSpeed(self, dfP):
+        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        radian_angle = (90 - s['Dir']) * np.pi / 180.0
+        x = np.abs(s['S'] * np.sin(radian_angle)).values[0]
+        return x
+
+    def f_DistanceToLOS(self, dfP):
         return (dfP.X - dfP.LineOfScrimmage).abs().mean().__float__()
 
     def new_features(self, df, methods):
@@ -101,12 +110,13 @@ class FeatureGenerator:
             df = df.join(extractedFeatures)
 
         out = df.drop_duplicates(self.repeated_features)
-        covariates = out.drop(columns=self.response).drop(columns=self.dropColumns)
 
         # return based on training or test data
         if test:
+            covariates = out.drop(columns=self.dropColumns)
             return covariates, out.index.values
         else:
+            covariates = out.drop(columns=self.response).drop(columns=self.dropColumns)
             return covariates, out[self.response], out.index.values
 
 
