@@ -76,6 +76,11 @@ class FeatureGenerator:
         DistDefMean = dist_opponents.mean()
         DistDef = dist_opponents.min()
 
+        OffCountWR = (mates['Position']=='WR').sum() + (s['Position']=='WR').sum()
+        DefXStd = opponents['X'].std()
+        DefYStd = opponents['Y'].std()
+        OffXStd = mates['X'].std()
+        OffYStd = mates['Y'].std()
         DistLOS = (s['LineOfScrimmage'] - s['X']).values[0] * \
             np.where(s['PlayDirection'] == 'right', 1, -1)[0]
         DistGoal = \
@@ -90,7 +95,10 @@ class FeatureGenerator:
              "Acc": Acc, "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
              "DistDefvsOff": DistDefvsOff, "DistOffMean": DistOffMean,
              "DistDefMean": DistDefMean, "AccClosestvsRusher": AccClosestvsRusher,
-             "SpeedClosestvsRusher": SpeedClosestvsRusher}
+             "SpeedClosestvsRusher": SpeedClosestvsRusher,
+             "DefXStd": DefXStd, "DefYStd": DefYStd,
+             "OffXStd": OffXStd, "OffYStd": OffYStd,
+             "OffCountWR": OffCountWR}
         return d
 
     @staticmethod

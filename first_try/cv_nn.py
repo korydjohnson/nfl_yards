@@ -20,6 +20,21 @@ folds = pd.read_csv('./input/cvfolds.csv')
 print('- merge cv folds to train data')
 df = df.merge(folds[['PlayId', 'fold']], on = 'PlayId', how = 'left')
 
+feat_num = [
+    'Distance', 'DefendersInTheBox', 'Week', 'DistanceToGoal',
+    'RusherInfo_Acc', 'RusherInfo_DistDef', 'RusherInfo_DistGoal',
+    'RusherInfo_DistLOS',
+    'RusherInfo_SpeedX', 'RusherInfo_SpeedY', 'RusherInfo_DistDefvsOff', 'RusherInfo_DistOffMean',
+    'RusherInfo_DistDefMean', 'RusherInfo_AccClosestvsRusher', 'RusherInfo_SpeedClosestvsRusher',
+    'RusherInfo_DefXStd', 'RusherInfo_DefYStd', 'RusherInfo_OffXStd', 'RusherInfo_OffYStd',
+    'RusherInfo_OffCountWR',
+]
+feat_cat = [
+    'Quarter', 'PossessionTeam', 'Down',
+    'OffenseFormation', 'OffensePersonnel', 'DefensePersonnel',
+    'HomeTeamAbbr', 'VisitorTeamAbbr', 'StadiumType', 'Turf', 'GameWeather',
+    'RusherInfo_Pos',
+]
 
 observed = []
 predicted = []
@@ -28,8 +43,8 @@ nfolds = 5
 for i in range(nfolds):
     print('- Fold %d' %(i+1))
 
-    intr = np.where(df['fold']!=i)[0]
-    inte = np.where(df['fold']==i)[0]
+    intr = np.where((df['fold']!=i) & (df['GameId'].astype(str).str[:4] == '2018'))[0]
+    inte = np.where((df['fold']==i) & (df['GameId'].astype(str).str[:4] == '2018'))[0]
 
     df_tr = df.loc[intr,:].reset_index(drop=True)
     df_te = df.loc[inte,:].reset_index(drop=True)
@@ -45,17 +60,8 @@ for i in range(nfolds):
     xte, yte, playid_te = featgenerator.make_features(df_te, test=False)
 
     print('  - transform features')
-    feat_num = [
-        'Distance', 'DefendersInTheBox', 'Week', 'DistanceToGoal', 'RusherDistanceToLOS',
-        'RusherAcceleration', 'RusherHorizontalSpeed', 'RusherVerticalSpeed',
-    ]
-    feat_cat = [
-        'Quarter', 'PossessionTeam', 'Down',
-        'OffenseFormation', 'OffensePersonnel', 'DefensePersonnel',
-        'HomeTeamAbbr', 'VisitorTeamAbbr', 'StadiumType', 'Turf', 'GameWeather',
-    ]
     preproc = Preprocessor(xtr, feat_num, feat_cat)
-    xtr, ytr = preproc.transform_data(xtr, ytr, test=False)
+    xtr, ytr = preproc.transform_data(xtr, ytr,  test=False)
     xte, yte = preproc.transform_data(xte, yte, test=False)
     n_unique = xtr[1].max(0).values.detach().numpy() + 1
 
@@ -96,6 +102,57 @@ loss = np.mean((observed-predicted)**2)
 print('- CRPS=%.5f' %(loss))
 
 print('Done!!!')
+
+
+# - Fold 1
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01353
+# - Fold 2
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01422
+# - Fold 3
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01340
+# - Fold 4
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01415
+# - Fold 5
+#   - clean data
+#   - get features
+#   - transform features
+#   - train network
+#   - bag 1
+#   - bag 2
+#   - bag 3
+#   - CRPS=0.01413
+# - compute overall CV score
+# - CRPS=0.01387
+# Done!!!
+
 
 
 
