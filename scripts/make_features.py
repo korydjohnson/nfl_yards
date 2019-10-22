@@ -61,9 +61,21 @@ class FeatureGenerator:
 
     @staticmethod
     def f_RusherInfo(dfP):
-        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        bool_rusher = dfP['NflId'] == dfP['NflIdRusher']
+        s = dfP[bool_rusher]
+        mates = dfP[(dfP.Team == s.Team.values[0]) & ~bool_rusher]
         opponents = dfP[dfP.Team != s.Team.values[0]]
-        DistDef = np.sqrt((opponents.X - s['X'])**2 + (opponents.Y - s['Y'])**2).min()
+        dist_mates =  np.sqrt((mates.X - s['X'].values[0])**2 + (mates.Y - s['Y'].values[0])**2)
+        dist_opponents = np.sqrt((opponents.X - s['X'].values[0])**2 + (opponents.Y - s['Y'].values[0])**2)
+        closest_opponent = opponents.loc[dist_opponents.idxmin(),:]
+
+        AccClosestvsRusher = (closest_opponent['A']-s['A']).values[0]
+        SpeedClosestvsRusher = (closest_opponent['S']-s['S']).values[0]
+        DistDefvsOff = dist_opponents.sum() - dist_mates.sum()
+        DistOffMean = dist_mates.mean()
+        DistDefMean = dist_opponents.mean()
+        DistDef = dist_opponents.min()
+
         DistLOS = (s['LineOfScrimmage'] - s['X']).values[0] * \
             np.where(s['PlayDirection'] == 'right', 1, -1)[0]
         DistGoal = \
@@ -75,7 +87,10 @@ class FeatureGenerator:
         SpeedY = np.abs(s['S'] * np.sin(radian_angle)).values[0]
         Pos = s.Position.values[0]
         d = {"DistLOS": DistLOS, "DistGoal": DistGoal, "DistDef": DistDef,
-             "Acc": Acc, "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos}
+             "Acc": Acc, "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
+             "DistDefvsOff": DistDefvsOff, "DistOffMean": DistOffMean,
+             "DistDefMean": DistDefMean, "AccClosestvsRusher": AccClosestvsRusher,
+             "SpeedClosestvsRusher": SpeedClosestvsRusher}
         return d
 
     @staticmethod
