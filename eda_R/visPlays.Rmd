@@ -78,7 +78,7 @@ plotPlay = function(dfPlay, featureName=NULL, featureValue=NULL, runner=T) {
       "PlayDirection", dfPlay$PlayDirection, "; ",
       "FieldPosition", dfPlay$FieldPosition, "; ",
       "HomeTeam", dfPlay$HomeTeamAbbr),
-      subtitle = paste(featureName, round(featureValue,2), "; ", 
+      subtitle = paste(featureName, featureValue, "; ", 
         "Yards", dfPlay$Yards, "; ",
         "Down", dfPlay$Down)) +
     geom_point(data=dfRun, aes(X, Y, color=Position))
@@ -88,8 +88,8 @@ plotRunner_add = function(p, dfPlay) {
   dfRunner = dfPlay %>% 
     filter(NflIdRusher == NflId) %>% 
     mutate(
-      dirRad = ((Dir + 90)%%360)/180,
-      orRad = ((Orientation + 90)%%360)/180,
+      dirRad = ((-1^(PlayDirection=="left")*Dir + 90)%%360)/180,
+      orRad = ((-1^(PlayDirection=="left")*Orientation + 90)%%360)/180,
       Xd = X + S*cos(dirRad*pi),
       Yd = Y + S*sin(dirRad*pi),
       Xo = X + S/2*cos(orRad*pi),
@@ -99,6 +99,7 @@ plotRunner_add = function(p, dfPlay) {
     geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xd, yend=Yd, color="RB"), cex=1) +
     geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xo, yend=Yo, color="RB"), cex=1)
 }
+plotPlay(dfPlay)
 ```
 
 # Runner

@@ -45,6 +45,7 @@ loadData <- function(fileName = "train.csv", ...) {
     as_tibble()
 }
 df = loadData("trainClean.csv")
+dfTest = loadData("test.csv")
 ```
 
 # Missing Values
@@ -55,6 +56,28 @@ df %>%
   summarise_all(function(col) sum(is.na(col)))
 ```
 
+
+# Compare Features to Test Set
+
+```{r}
+compareTest = function(dfTrain, dfTest, feature, year=NULL) {
+  dfTr = dfTrain %>% 
+    filter(NflId==NflIdRusher)
+  if (!is.null(year)) {
+    dfTr %<>% 
+      filter(str_detect(GameId, paste0("^", year, ".*")))
+  }
+  dfTe = dfTest %>% 
+    filter(NflId==NflIdRusher)
+
+  ggplot() + 
+    geom_density(data=dfTr, aes(!!sym(feature), color=paste("train", year))) +
+    geom_density(data=dfTe, aes(!!sym(feature), color="test")) +
+    labs(color = "Data Set")
+}
+compareTest(df, dfTest, "S", 2017)
+dim(dfTe)
+```
 
 # EDA {.tabset .tabset-fade}
 

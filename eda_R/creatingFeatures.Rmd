@@ -89,10 +89,15 @@ dfPlay %>%
   select(Dir, Orientation, S)
 ```
 
-Checking python data
+#  Checking python data
 ```{r}
-dfPy = loadData("trainClean_py.csv") %>% 
-  arrange(desc(DistanceToLOS))
+dfPy = loadData("trainClean_py.csv") 
+newFeatures = colnames(dfPy)[33:ncol(dfPy)]
+for (col in newFeatures) {
+  p = ggplot(dfPy, aes(!!sym(col))) +
+    geom_density()
+  print(p)
+}
 dfPy %>% 
   ggplot(aes(LineOfScrimmage)) +
   geom_histogram()

@@ -20,6 +20,7 @@ NOTE:
 import pandas as pd
 import numpy as np
 from scripts.clean_data import DataCleaner
+# from clean_data import DataCleaner
 
 
 class FeatureGenerator:
@@ -58,41 +59,35 @@ class FeatureGenerator:
     def positionOfRunner(self, df):
         pass
 
-    def f_RusherDistanceToLOS(self, dfP):
-        s = dfP[dfP['NflId']==dfP['NflIdRusher']]
-        x = (s['LineOfScrimmage'] - s['X'])* np.where(s['PlayDirection']=='right', 1, -1)[0]
-        return x
-
-    def f_RusherDistanceToEndzone(self, dfP):
-        s = dfP[dfP['NflId']==dfP['NflIdRusher']]
-        x = 110-s['X'].values[0] if s['PlayDirection'].values[0]=='right' else s['X'].values[0]
-        return x
-
-    def f_RusherAcceleration(self, dfP):
-        s = dfP[dfP['NflId']==dfP['NflIdRusher']]
-        x = s['A'].values[0]
-        return x
-
-    def f_RusherHorizontalSpeed(self, dfP):
+    @staticmethod
+    def f_RusherInfo(dfP):
         s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        opponents = dfP[dfP.Team != s.Team.values[0]]
+        DistDef = np.sqrt((opponents.X - s['X'])**2 + (opponents.Y - s['Y'])**2).min()
+        DistLOS = (s['LineOfScrimmage'] - s['X']).values[0] * \
+            np.where(s['PlayDirection'] == 'right', 1, -1)[0]
+        DistGoal = \
+            110-s['X'].values[0] if s['PlayDirection'].values[0] == 'right' else s['X'].values[0]
+        Acc = s['A'].values[0]
         radian_angle = (90 - s['Dir']) * np.pi / 180.0
-        x = np.abs(s['S'] * np.cos(radian_angle)).values[0]
-        return x
-
-    def f_RusherVerticalSpeed(self, dfP):
-        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        SpeedX = np.abs(s['S'] * np.cos(radian_angle)).values[0]
         radian_angle = (90 - s['Dir']) * np.pi / 180.0
-        x = np.abs(s['S'] * np.sin(radian_angle)).values[0]
-        return x
+        SpeedY = np.abs(s['S'] * np.sin(radian_angle)).values[0]
+        Pos = s.Position.values[0]
+        d = {"DistLOS": DistLOS, "DistGoal": DistGoal, "DistDef": DistDef,
+             "Acc": Acc, "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos}
+        return d
 
-    def f_DistanceToLOS(self, dfP):
+    @staticmethod
+    def f_DistanceToLOS(dfP):
         return (dfP.X - dfP.LineOfScrimmage).abs().mean().__float__()
 
-    def new_features(self, df, methods):
+    def new_features(self, dfP, methods):
         out = {}
         for method in methods:
-            out[method[2:]] = getattr(self, method)(df)
-        return pd.Series(out)
+            out[method[2:]] = getattr(self, method)(dfP)  # always store features as dict
+        out = pd.io.json.json_normalize(out, sep='_')
+        return out.iloc[0]
 
     def make_features(self, df, features=None, test=False):
         # creating features, method names
@@ -125,11 +120,11 @@ if __name__ == "__main__":
     cleaner = DataCleaner(data)
     data = cleaner.clean_data(data)
     ctor = FeatureGenerator()  # feature constructor
-    dfP = data.filter(like="20170907000118", axis=0)
-    x, y, PlayId = ctor.make_features(dfP)
+    dfSub = data.filter(like="20170907000118", axis=0)
+    x, y, PlayId = ctor.make_features(dfSub)
     x
-    dfP = dfP.drop("Yards", axis=1)
-    x, PlayId = ctor.make_features(dfP, test=True)
+    dfSub = dfSub.drop("Yards", axis=1)
+    x, PlayId = ctor.make_features(dfSub, test=True)
     x
     x, y, PlayId = ctor.make_features(data, ["DistanceToLOS"])
     x.head()

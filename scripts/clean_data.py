@@ -44,6 +44,7 @@ class DataCleaner:
         self.categorical_imputeVal = {
             'PossessionTeam': 'NE', 'FieldPosition': 'BUF',
             'HomeTeamAbbr': 'SF', 'VisitorTeamAbbr': 'LA',
+            'Position': 'CB',
             'OffenseFormation': 'SINGLEBACK',
             'OffensePersonnel': '1 RB, 1 TE, 3 WR',
             'DefensePersonnel': '4 DL, 2 LB, 5 DB',
