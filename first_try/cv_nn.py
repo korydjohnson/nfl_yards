@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 import torch
-from network.network import nn1
+from network.network import nn1, nn2
 from network.network import Preprocessor
 
 from scripts.clean_data import DataCleaner
@@ -40,20 +40,23 @@ for i in range(nfolds):
     df_te = cleaner.clean_data(df_te)
 
     print('  - get features')
-    featgenerator = FeatureGenerator(df_tr)
-    xtr, ytr, playid_tr = featgenerator.make_features(df_tr, is_train=True)
-    xte, yte, playid_te = featgenerator.make_features(df_te, is_train=True)
+    featgenerator = FeatureGenerator()
+    xtr, ytr, playid_tr = featgenerator.make_features(df_tr, test=False)
+    xte, yte, playid_te = featgenerator.make_features(df_te, test=False)
 
     print('  - transform features')
-    feat_num = ['YardLine', 'Distance', 'DefendersInTheBox', 'Week']
+    feat_num = [
+        'Distance', 'DefendersInTheBox', 'Week', 'DistanceToGoal', 'RusherDistanceToLOS',
+        'RusherAcceleration', 'RusherHorizontalSpeed', 'RusherVerticalSpeed',
+    ]
     feat_cat = [
         'Quarter', 'PossessionTeam', 'Down',
         'OffenseFormation', 'OffensePersonnel', 'DefensePersonnel',
         'HomeTeamAbbr', 'VisitorTeamAbbr', 'StadiumType', 'Turf', 'GameWeather',
     ]
-    preproc = Preprocessor(xtr, ytr, feat_num, feat_cat)
-    xtr, ytr = preproc.transform_data(xtr, ytr, is_train=True)
-    xte, yte = preproc.transform_data(xte, yte, is_train=True)
+    preproc = Preprocessor(xtr, feat_num, feat_cat)
+    xtr, ytr = preproc.transform_data(xtr, ytr, test=False)
+    xte, yte = preproc.transform_data(xte, yte, test=False)
     n_unique = xtr[1].max(0).values.detach().numpy() + 1
 
     # input_size = len(feat_num) + 2 * len(feat_cat)
@@ -72,7 +75,7 @@ for i in range(nfolds):
     for j in range(nbags):
         print('  - bag %d' %(j+1))
         net = nn1(input_size=input_size, hidden_size=25, output_size=199, batch_size=128, n_unique=n_unique).to(device)
-        net.train_epochs(nepochs=20, X=xtr, y=ytr)
+        net.train_epochs(nepochs=60, X=xtr, y=ytr)
         preds += net.predict(xte).cpu().detach().numpy()
 
     preds /= nbags
@@ -94,6 +97,8 @@ print('- CRPS=%.5f' %(loss))
 
 print('Done!!!')
 
+
+
 # - read data
 # - merge cv folds to train data
 # - Fold 1
@@ -104,7 +109,7 @@ print('Done!!!')
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01400
+#   - CRPS=0.01316
 # - Fold 2
 #   - clean data
 #   - get features
@@ -113,7 +118,7 @@ print('Done!!!')
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01436
+#   - CRPS=0.01361
 # - Fold 3
 #   - clean data
 #   - get features
@@ -122,7 +127,7 @@ print('Done!!!')
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01344
+#   - CRPS=0.01287
 # - Fold 4
 #   - clean data
 #   - get features
@@ -131,7 +136,7 @@ print('Done!!!')
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01373
+#   - CRPS=0.01312
 # - Fold 5
 #   - clean data
 #   - get features
@@ -140,7 +145,7 @@ print('Done!!!')
 #   - bag 1
 #   - bag 2
 #   - bag 3
-#   - CRPS=0.01375
+#   - CRPS=0.01301
 # - compute overall CV score
-# - CRPS=0.01386
+# - CRPS=0.01316
 # Done!!!
