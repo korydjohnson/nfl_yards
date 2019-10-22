@@ -44,7 +44,12 @@ loadData <- function(fileName = "train.csv", ...) {
   data.table::fread(file, ...) %>% 
     as_tibble()
 }
-df = loadData("trainClean.csv")
+df = loadData("trainClean.csv") %>% 
+  mutate(YardsToGoal = YardLine + (100-2*YardLine)*(PossessionTeam==FieldPosition),
+    LOS_Side = ifelse((PlayDirection=="right" & PossessionTeam==FieldPosition) |
+        (PlayDirection=="left" & PossessionTeam!=FieldPosition),
+      "left", "right"),
+    LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
 ```
 
 # Plotting Function
@@ -57,13 +62,7 @@ If PlayDirection == leftand in your field, then LOS is on right.
 Need to either add 10 or subtract 10 for endzone...
 
 ```{r}
-dfPlay = filter(df, PlayId == df$PlayId[1]) %>% 
-  mutate(YardsToGoal = YardLine + (100-2*YardLine)*(PossessionTeam==FieldPosition),
-         LOS_Side = ifelse((PlayDirection=="right" & PossessionTeam==FieldPosition) |
-                             (PlayDirection=="left" & PossessionTeam!=FieldPosition),
-                           "left", "right"),
-         LineOfScrimmage = ifelse(LOS_Side=="left", YardLine+10, 110-YardLine))
-select(dfPlay, YardLine, YardsToGoal, LineOfScrimmage)
+dfPlay = filter(df, PlayId == df$PlayId[1])
 plotPlay = function(dfPlay, featureName=NULL, featureValue=NULL, runner=T) {
   dfRun = dfPlay %>% 
     filter(Position == "QB" | NflIdRusher == NflId)
@@ -104,7 +103,8 @@ plotPlay(dfPlay)
 
 # Runner
 
-Where is the runner? Where is the QB? What is the runner's position?
+Where is the runner? Where is the QB? What is the runner's position? Which way is runner facing? 
+
 
 ```{r}
 dfPlay %>% 
@@ -117,28 +117,60 @@ plotPlay(dfPlay) +
   geom_point(data=dfRun, aes(X, Y, color=Position))
 ```
 
-Which way is runner facing? 
+# Looking at Plays
+
+First, categorize runs: long, medium, short, bad
 ```{r}
-plotRunner_add = function(p, dfPlay) {
-  dfRunner = dfPlay %>% 
-    filter(NflIdRusher == NflId) %>% 
-    mutate(
-      dirRad = ((Dir + 90)%%360)/180,
-      orRad = ((Orientation + 90)%%360)/180,
-      Xd = X + S*cos(dirRad*pi),
-      Yd = Y + S*sin(dirRad*pi),
-      Xo = X + S/2*cos(orRad*pi),
-      Yo = Y + S/2*sin(orRad*pi)
-    )
-  p +
-    geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xd, yend=Yd, color="RB"), cex=1) +
-    geom_segment(data=dfRunner, aes(x=X, y=Y, xend=Xo, yend=Yo, color="RB"), cex=1)
-}
-dfRun = getRunnerDir(dfPlay)
-dfRun = getRunnerDir(dfPlay, "Orientation")
-p = plotPlay(dfPlay)
-plotPlay(dfPlay) %>% 
-  plotRunner_add(dfPlay)
+ggplot(df) +
+  geom_density(aes(Yards))
+summary(df$Yards)
+df %<>%
+  mutate(YardsCategory = cut(Yards, breaks = c(-Inf, 0, 3, 6, Inf), 
+             labels=c("bad", "short", "med", "long")))
+table(df$YardsCategory)
+PlayId_long = df %>% 
+  filter(YardsCategory == "long") %>% 
+  pull(PlayId)
+PlayId_med = df %>% 
+  filter(YardsCategory == "med") %>% 
+  pull(PlayId)
+PlayId_short = df %>% 
+  filter(YardsCategory == "short") %>% 
+  pull(PlayId)
+PlayId_bad = df %>% 
+  filter(YardsCategory == "bad") %>% 
+  pull(PlayId)
 ```
 
+Plot several runs from vector of ids
+```{r}
+plotPlays = function(ids, n=5) {
+  for (index in sample.int(length(ids), 5)) {
+    id = ids[index]
+    p = df %>% 
+      filter(PlayId == id) %>% 
+      plotPlay()
+    print(p)
+  }
+}
+```
 
+## Long Runs
+```{r}
+plotPlays(PlayId_long)
+```
+
+## Medium Runs
+```{r}
+plotPlays(PlayId_med)
+```
+
+## Short Runs
+```{r}
+plotPlays(PlayId_short)
+```
+
+## Bad Runs
+```{r}
+plotPlays(PlayId_bad)
+```
