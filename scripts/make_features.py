@@ -19,8 +19,8 @@ NOTE:
 
 import pandas as pd
 import numpy as np
-# from scripts.clean_data import DataCleaner
-from clean_data import DataCleaner
+from scripts.clean_data import DataCleaner
+# from clean_data import DataCleaner
 
 
 class FeatureGenerator:
@@ -63,11 +63,11 @@ class FeatureGenerator:
     def f_RusherInfo(dfP):
         # set-up
         bool_rusher = dfP['NflId'] == dfP['NflIdRusher']
-        s = dfP[bool_rusher]
+        s = dfP[bool_rusher].copy()
         # radian_angle = (90 - s['Dir']) * np.pi / 180.0
         rush_dir_rad = (-1**(s['PlayDirection'].values[0] == "left") * s['Dir'] + 90) / 180
-        mates = dfP[(dfP.Team == s.Team.values[0]) & ~bool_rusher]
-        opponents = dfP[dfP.Team != s.Team.values[0]]
+        mates = dfP[(dfP.Team == s.Team.values[0]) & ~bool_rusher].copy()
+        opponents = dfP[dfP.Team != s.Team.values[0]].copy()
         dist_mates = np.sqrt((mates.X - s['X'].values[0])**2 + (mates.Y - s['Y'].values[0])**2)
         dist_opponents = \
             np.sqrt((opponents.X - s['X'].values[0])**2 + (opponents.Y - s['Y'].values[0])**2)
@@ -76,7 +76,7 @@ class FeatureGenerator:
         # descriptive statistics
         AccClosestvsRusher = (closest_opponent['A']-s['A']).values[0]
         SpeedClosestvsRusher = (closest_opponent['S']-s['S']).values[0]
-        OffCountWR = (mates['Position'] == 'WR').sum() + (s['Position'] == 'WR').sum()
+        OffCountWR = mates['Position'].isin(['WR']).sum() + s['Position'].isin(['WR']).sum()
         DefXStd = opponents['X'].std()
         DefYStd = opponents['Y'].std()
         OffXStd = mates['X'].std()
@@ -104,7 +104,8 @@ class FeatureGenerator:
              "SpeedClosestvsRusher": SpeedClosestvsRusher,
              "DefXStd": DefXStd, "DefYStd": DefYStd,
              "OffXStd": OffXStd, "OffYStd": OffYStd,
-             "OffCountWR": OffCountWR}
+             "OffCountWR": OffCountWR,
+        }
         return d
 
     @staticmethod
