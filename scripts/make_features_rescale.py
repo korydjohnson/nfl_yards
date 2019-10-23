@@ -60,26 +60,29 @@ class FeatureGenerator:
         pass
 
     @staticmethod
+    def f_teaminfo(offense, defense):
+        OffCountWR = (offense['Position'] == 'WR').sum()
+        DefXStd = defense['X'].std()
+        DefYStd = defense['Y'].std()
+        OffXStd = offense['X'].std()
+        OffYStd = offense['Y'].std()
+
+    @staticmethod
     def f_RusherInfo(dfP):
-        # set-up
+        # set-up rusher
         bool_rusher = dfP['NflId'] == dfP['NflIdRusher']
         s = dfP[bool_rusher]
         rush_dir_rad = (90 - s['Dir']) * np.pi / 180.0
+        # set-up teams
         offense = dfP[dfP.OnOffense & ~bool_rusher]
         defense = dfP[~dfP.OnOffense]
         dist_off = np.sqrt((offense.X - s['X'].values[0])**2 + (offense.Y - s['Y'].values[0])**2)
-        dist_def = \
-            np.sqrt((defense.X - s['X'].values[0])**2 + (defense.Y - s['Y'].values[0])**2)
+        dist_def = np.sqrt((defense.X - s['X'].values[0])**2 + (defense.Y - s['Y'].values[0])**2)
         closest_opponent = defense.loc[dist_def.idxmin(), :]
 
         # descriptive statistics
         AccClosestvsRusher = (closest_opponent['A']-s['A']).values[0]
         SpeedClosestvsRusher = (closest_opponent['S']-s['S']).values[0]
-        OffCountWR = (offense['Position'] == 'WR').sum() + (s['Position'] == 'WR').sum()
-        DefXStd = defense['X'].std()
-        DefYStd = defense['Y'].std()
-        OffXStd = offense['X'].std()
-        OffYStd = offense['Y'].std()
         Acc = s['A'].values[0]
         SpeedX = np.abs(s['S'] * np.cos(rush_dir_rad)).values[0]
         SpeedY = np.abs(s['S'] * np.sin(rush_dir_rad)).values[0]
@@ -122,14 +125,9 @@ class FeatureGenerator:
         else:
             methods = ["f_" + feature for feature in features]
 
-        # call methods in correct order
-        maxOrder = max([method.count("_") for method in methods])
-        for order in range(maxOrder):
-            methods_sub = [method for method in methods if method.count("_") == order+1]
-            extractedFeatures = df.groupby('PlayId').apply(self.new_features, methods_sub)
-            df = df.join(extractedFeatures)
-
         out = df.drop_duplicates(self.repeated_features)
+        extractedFeatures = df.groupby('PlayId').apply(self.new_features, methods)
+        out = out.join(extractedFeatures)
 
         # return based on training or test data
         if test:
