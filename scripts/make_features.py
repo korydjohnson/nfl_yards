@@ -83,8 +83,8 @@ class FeatureGenerator:
         OffYStd = mates['Y'].std()
         DistLOS = (s['LineOfScrimmage'] - s['X']).values[0] * \
             np.where(s['PlayDirection'] == 'right', 1, -1)[0]
-        DistGoal = \
-            110-s['X'].values[0] if s['PlayDirection'].values[0] == 'right' else s['X'].values[0]
+        # DistGoal = \
+        #     110-s['X'].values[0] if s['PlayDirection'].values[0] == 'right' else s['X'].values[0]
         Acc = s['A'].values[0]
         radian_angle = (90 - s['Dir']) * np.pi / 180.0
         SpeedX = np.abs(s['S'] * np.cos(radian_angle)).values[0]

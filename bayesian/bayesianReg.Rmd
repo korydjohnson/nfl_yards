@@ -35,6 +35,7 @@ This file creates some basic Regression models for nfl_yards.
 library(tidyverse)
 library(magrittr)
 library(modelr)  # for cv
+library(caret)
 # devtools::install_github("korydjohnson/rai")
 library(rai)
 ```
@@ -50,48 +51,12 @@ loadData <- function(fileName = "train.csv", ...) {
 theData = loadData("trainClean_py.csv")
 theResponse = loadData("trainResponse_py.csv") %>% 
   pull(Yards)
+dim(theData); length(theResponse)
 # theData
 ```
 
-# Compare Normal to MLE Beta
+### Helper Functions {-}
 
-As the base model was a marginal MLE of yards, see shape of predicted distribution.
-
-```{r}
-a = 112.75760456
-b = 103.6066858
-x = seq(0, 198)/198
-beta = dbeta(x, a, b)
-dfBeta = tibble(x, beta)
-dfBeta %>% 
-  filter(beta > .001) %>% 
-  ggplot() +
-  geom_line(aes(x*199-99, beta))
-```
-
-Short answer: yeah, normal.
-```{r}
-mu = a/(a+b)
-sig = sqrt(a*b/((a+b)^2*(a+b+1)))
-dfBeta %<>%
-  mutate(normal = dnorm(x, mu, sig))
-dfBeta %>% 
-  gather("dist", "density", beta, normal) %>% 
-  filter(density > .01) %>% 
-  ggplot() +
-  geom_line(aes(x, density, color=dist))
-```
-
-# CV and Compute Error
-
-LM to compare
-```{r}
-runLM = function(theData, theResponse) {
-  lm(theResponse ~ ., data=theData)
-}
-```
-
-Helper Functions
 ```{r}
 getProbs = function(est, sd, rangeY=NULL) {
   if (is.null(rangeY)) {
@@ -108,6 +73,8 @@ crps = function(probVec, y, rangeY=NULL) {
   mean((probVec-Hy)^2)
 }
 ```
+
+### CV Functions {-}
 
 Just to compare. Will use CV to get an estimate of performance before uploading to cloud.
 ```{r}
@@ -145,60 +112,62 @@ predictCV = function(theResponse, theData, modelFnc, k=5) {
     ) %>% 
     summarise(crps = mean(crps))
 }
-# select(predicted, y, pred)
-# pred = tibble(dfSub$Yards, exp(predicted$pred) - 15)
-# index = 200
-# mean(predicted$y)
-# plot(rangeY, predicted$probEst[[index]])
-# abline(v=predicted$y[index])
-# ggplot(predicted) +
- # geom_point(aes(pred, y-pred))
 
-#wrapper
 errorOOS = function(theResponse, theData, fncs, k=5) {
   map(fncs, ~ predictCV(theResponse, theData, ., k))
 }
 ```
 
-Test
-```{r}
-df = loadData("trainClean.csv")
-dfSub = df %>% 
-  distinct(PlayId, .keep_all = T) %>%
-  # select(Yards, Distance, Down) %>% 
-  select(Yards, Distance, Down, YardLine, NflIdRusher, OffenseFormation,
-    OffensePersonnel, DefendersInTheBox, DefensePersonnel) %>%
-  mutate(
-    Down = as.factor(Down),
-    NflIdRusher = as.factor(NflIdRusher)
-  )
+### Modeling Functions {-}
 
-theResponse = log(pmax(dfSub$Yards + 15, 0))
-theData = select(dfSub, -Yards)
-# theData = data.frame(rep(1, length(theResponse)))
-modelFnc = runLM
-modelFnc = rai
-predictCV(theResponse, theData, modelFnc)
-errorOOS(theResponse, theData, list("rai"=rai, "lm"=runLM))
+LM
+```{r}
+runLM = function(theData, theResponse) {
+  lm(theResponse ~ ., data=theData)
+}
 ```
 
-## Running Linear Models
-
+Poisson Reg
 ```{r}
-theResponse2 = log(pmax(theResponse + 15, 0))
-covariates = c("Quarter", "PossessionTeam", "Down", "Distance", "OffenseFormation",
-               "DefendersInTheBox", "Turf", "GameWeather", "DistanceToGoal", "DistanceToLOS")
-categorical = c("Quarter", "PossessionTeam", "Down", "OffenseFormation", "Turf", "GameWeather")
-theData2 = theData %>% 
-  select(covariates) %>% 
-  mutate_at(vars(categorical), as.factor)
-modelFnc = rai
-# modelFnc = runLM
-predictCV(theResponse2, theData2, modelFnc)
-errorOOS(theResponse, theData2, list("rai"=rai, "lm"=runLM))
+runPoisReg = function(theData, theResponse) {
+  glm(theResponse ~., family = "poisson", data = theData)
+}
 ```
 
-# Normal {-}
+
+# Marginal Models
+
+## Beta Dist to Normal
+
+As the base model was a marginal MLE of yards, see shape of predicted distribution.
+
+```{r}
+a = 112.75760456
+b = 103.6066858
+x = seq(0, 198)/198
+beta = dbeta(x, a, b)
+dfBeta = tibble(x, beta)
+dfBeta %>% 
+  filter(beta > .001) %>% 
+  ggplot() +
+  geom_line(aes(x*199-99, beta))
+```
+
+Short answer: yeah, normal.
+```{r}
+mu = a/(a+b)
+sig = sqrt(a*b/((a+b)^2*(a+b+1)))
+dfBeta %<>%
+  mutate(normal = dnorm(x, mu, sig))
+dfBeta %>% 
+  gather("dist", "density", beta, normal) %>% 
+  filter(density > .01) %>% 
+  ggplot() +
+  geom_line(aes(x, density, color=dist))
+```
+
+
+## Normal
 
 MLE unadjusted
 ```{r}
@@ -253,5 +222,124 @@ Hm, from this, beta seems to be on the same scale as normal, which makes sense. 
 
 Data Issue. All good now.
 
+# CV and Compute Error
+
+Test, not in code block just to prevent running via "Run All Chunks Above"
+
+df = loadData("trainClean.csv")
+dfSub = df %>% 
+  distinct(PlayId, .keep_all = T) %>%
+  # select(Yards, Distance, Down) %>% 
+  select(Yards, Distance, Down, YardLine, NflIdRusher, OffenseFormation,
+    OffensePersonnel, DefendersInTheBox, DefensePersonnel) %>%
+  mutate(
+    Down = as.factor(Down),
+    NflIdRusher = as.factor(NflIdRusher)
+  )
+
+theResponse = log(pmax(dfSub$Yards + 15, 0))
+theData = select(dfSub, -Yards)
+# theData = data.frame(rep(1, length(theResponse)))
+modelFnc = runLM
+modelFnc = rai
+predictCV(theResponse, theData, modelFnc)
+errorOOS(theResponse, theData, list("rai"=rai, "lm"=runLM))
+
+## Running Linear Models
+
+```{r}
+theResponse2 = log(pmax(theResponse + 15, 0))
+covariates = c("Quarter", "PossessionTeam", "Down", "Distance", "OffenseFormation",
+  "DefendersInTheBox", "Turf", "GameWeather", "DistanceToGoal", "DistanceToLOS",
+  "RusherInfo_Acc", "RusherInfo_DistDef", "RusherInfo_DistLOS",
+  "RusherInfo_Pos", "RusherInfo_SpeedX", "RusherInfo_SpeedY" )
+categorical = c("Quarter", "PossessionTeam", "Down", "OffenseFormation", "Turf", "GameWeather", "RusherInfo_Pos")
+theData2 = theData %>% 
+  select(covariates) %>% 
+  mutate_at(vars(categorical), as.factor)
+modelFnc = rai
+# modelFnc = runLM
+out = predictCV(theResponse2, theData2, modelFnc)
+# errorOOS(theResponse, theData2, list("rai"=rai, "lm"=runLM))
+```
+
+# RAI caret
+
+```{r}
+rai_caret = list(library = "rai",
+                 type = "Regression",
+                 prob = NULL)
+# subsampling, start parameter, alpha
+rai_caret$parameters = data.frame(parameter = c("alpha", "startDeg"),
+                                  class = rep("numeric", 2),
+                                  label = c("alpha", "startDeg"))
+rai_caret$grid = function(x, y, len=NULL, search = "grid") {
+  expand.grid(alpha = c(.01, seq(.05,.25,.05)),
+              startDeg = c(1, .5, 1/3))
+} 
+rai_caret$fit = function(x, y, wts=NULL, param, lev=NULL, 
+                         last, weights, classProbs, ...) {
+  rai::rai(theData = x, theResponse = y, alpha = param$alpha, ...)
+}
+rai_caret$predict = function(modelFit, newdata, preProc = NULL, 
+                             submodels = NULL) {
+  rai::predict.rai(modelFit, newdata) 
+}
+rai_caret$sort = function(x) x[order(rev(x$startDeg), x$alpha),]
+rai_caret$predictors = function(modelFit) {
+  modelFit$features
+}
+```
+
+Testing the Model
+```{r}
+fitControl <- trainControl(method = "repeatedcv",
+                           number = 5, ## 10-fold CV...
+                           repeats = 5)  ## repeated ten times
+# train(x=theData, y=theResponse, method=rai_caret, trControl = fitControl)
+```
+
+Adding the loop for sequential parameters (in this case, alpha). Will require a good amount of processing from `rai$summary`. This also requires a more general predict command.
+
+```{r}
+rai_caret$loop = function(grid) {
+  deg <- unique(grid$startDeg)
+  loop <- data.frame(startDeg = deg)
+  loop$alpha <- NA
+  submodels <- vector(mode = "list", length = length(deg))
+  for(i in seq(along = deg)) {
+    np <- grid[grid$startDeg == deg[i],"alpha"]
+    loop$alpha[loop$startDeg == deg[i]] <- np[which.max(np)]
+    submodels[[i]] <- data.frame(alpha = np[-which.max(np)])
+  }
+  list(loop = loop, submodels = submodels)
+}
+rai_caret$predict = function(modelFit, newdata, preProc = NULL, 
+                             submodels = NULL) {
+  out = predict(modelFit, newdata) 
+  if(!is.null(submodels)) {
+    out = list(out)
+    for(j in seq(along = submodels$alpha)) {
+      out[[j+1]] <- predict(modelFit, newdata, alpha = submodels$alpha[j])
+    }
+  }
+  out  
+}
+```
+
+Testing
+```{r}
+train(x=theData2, y=theResponse2, method=rai_caret, trControl = fitControl)
+```
+
+Performance
+```{r}
+tibble(theResponse) %>% 
+  mutate(
+    probEst = map2(pred, sd, getProbs),
+    crps = map2_dbl(probEst, theResponse, crps)
+  ) %>% 
+  summarise(crps = mean(crps))
+```
 
 ## Sub2 {-}

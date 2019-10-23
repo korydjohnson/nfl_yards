@@ -52,7 +52,6 @@ dfTest = loadData("test.csv")
 
 ```{r}
 df %>% 
-  select(PossessionTeam, FieldPosition, HomeTeamAbbr, VisitorTeamAbbr) %>% 
   summarise_all(function(col) sum(is.na(col)))
 ```
 
