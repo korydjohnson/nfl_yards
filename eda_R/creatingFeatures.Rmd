@@ -91,8 +91,9 @@ dfPlay %>%
 
 #  Checking python data
 ```{r}
-dfPy = loadData("trainClean_py.csv") 
-newFeatures = colnames(dfPy)[33:ncol(dfPy)]
+dfPy = loadData("features_py.csv") 
+dfPy = loadData("features1_py.csv")
+newFeatures = colnames(dfPy)[32:ncol(dfPy)]
 for (col in newFeatures) {
   p = ggplot(dfPy, aes(!!sym(col))) +
     geom_density()
@@ -116,6 +117,13 @@ index=1
 plotPlay(filter(df, PlayId==longDist[index]), "DistanceToLOS", dfPy[1, "DistanceToLOS"])
 dfPy %>% 
   filter(PlayId==longDist[index])
+```
+
+# Checking Rescaled Features
+
+```{r}
+dfPy1 = loadData("features1_py.csv") 
+dfPy_re = loadData("features_py.csv")
 ```
 
 # Features with Players

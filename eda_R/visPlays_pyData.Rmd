@@ -1,0 +1,84 @@
+---
+title: "Plotting Plays, Python Data (Standardized Direction and Location)"
+author: "Kory D. Johnson"
+date: 'Last Compiled `r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    code_folding: show
+    highlight: tango
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE,
+               collapse = FALSE,
+               comment = "",
+               strip.white = TRUE,
+               warning = FALSE,
+               message = FALSE,
+               out.width = "70%",
+               fig.align = "center")
+```
+
+## Topic
+
+This file 
+
+## Set Up  {.tabset .tabset-fade}
+
+### Packages/Files {-}
+
+```{r}
+library(tidyverse)
+library(magrittr)
+```
+
+### Load Data {-}
+
+```{r, cache=T}
+loadData <- function(fileName = "train.csv", ...) {
+  file = paste("../input", fileName, sep="/")
+  data.table::fread(file, ...) %>% 
+    as_tibble()
+}
+df = loadData("trainClean_py.csv")
+df %<>%
+  mutate(
+    X_end = S*cos((90-Dir)*pi/180) + X, 
+    Y_end = S*sin((90-Dir)*pi/180) + Y
+  )
+```
+
+# Plot code from rescale file
+
+Taken from https://www.kaggle.com/statsbymichaellopez/nfl-tracking-wrangling-voronoi-and-sonars#Dealing-with-player-tracking-data
+
+```{r}
+options(repr.plot.width=10, repr.plot.height=6)
+samp_play <- "20170910001102"
+df %>% 
+  filter(PlayId == samp_play) %>% 
+  ggplot(aes(X, Y, fill = ), colour = "black")  + 
+  geom_point(size = 4, pch = 21) + 
+  geom_segment(aes(x = X, y = Y, xend = X_end,
+                   yend = Y_end, colour = as.logical(OnOffense)), 
+              arrow = arrow(length = unit(.5,"cm"))) + 
+  geom_point(data = filter(df, NflId == NflIdRusher, 
+                           PlayId == samp_play), 
+             size = 1.5, pch = 21,
+             fill = "black") +
+  scale_colour_brewer(palette = "Set2")+ 
+  scale_fill_brewer(palette = "Set2")+ 
+  geom_vline(aes(xintercept = LineOfScrimmage), 
+             colour = "black", lty = 2) + 
+  scale_x_continuous(breaks = c(7:10)*10) + 
+  labs(x = "Distance from offensive team's own end zone", 
+       y = "Y coordinate", title = paste0("PlayId ", samp_play, ": player direction"), 
+       subtitle = "Offense moving left to right") + 
+  theme_bw(14) + 
+  theme(panel.grid.minor = element_blank(), 
+        panel.grid.major.y =element_blank())
+```

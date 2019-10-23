@@ -19,8 +19,8 @@ NOTE:
 
 import pandas as pd
 import numpy as np
-# from scripts.clean_data import DataCleaner
-from clean_data import DataCleaner
+# from scripts.clean_data_rescale import DataCleaner
+# from clean_data_rescale import DataCleaner
 
 
 class FeatureGenerator:
@@ -32,7 +32,7 @@ class FeatureGenerator:
                                   'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather',
-                                  'DistanceToGoal', 'LineOfScrimmage']
+                                  'LineOfScrimmage']
         self.dropColumns = ["PlayDirection"]
 
     def yardsTillNow(self, df):
@@ -64,37 +64,33 @@ class FeatureGenerator:
         # set-up
         bool_rusher = dfP['NflId'] == dfP['NflIdRusher']
         s = dfP[bool_rusher]
-        # radian_angle = (90 - s['Dir']) * np.pi / 180.0
-        rush_dir_rad = (-1**(s['PlayDirection'].values[0] == "left") * s['Dir'] + 90) / 180
-        mates = dfP[(dfP.Team == s.Team.values[0]) & ~bool_rusher]
-        opponents = dfP[dfP.Team != s.Team.values[0]]
-        dist_mates = np.sqrt((mates.X - s['X'].values[0])**2 + (mates.Y - s['Y'].values[0])**2)
-        dist_opponents = \
-            np.sqrt((opponents.X - s['X'].values[0])**2 + (opponents.Y - s['Y'].values[0])**2)
-        closest_opponent = opponents.loc[dist_opponents.idxmin(), :]
+        rush_dir_rad = (90 - s['Dir']) * np.pi / 180.0
+        offense = dfP[dfP.OnOffense & ~bool_rusher]
+        defense = dfP[~dfP.OnOffense]
+        dist_off = np.sqrt((offense.X - s['X'].values[0])**2 + (offense.Y - s['Y'].values[0])**2)
+        dist_def = \
+            np.sqrt((defense.X - s['X'].values[0])**2 + (defense.Y - s['Y'].values[0])**2)
+        closest_opponent = defense.loc[dist_def.idxmin(), :]
 
         # descriptive statistics
         AccClosestvsRusher = (closest_opponent['A']-s['A']).values[0]
         SpeedClosestvsRusher = (closest_opponent['S']-s['S']).values[0]
-        OffCountWR = (mates['Position'] == 'WR').sum() + (s['Position'] == 'WR').sum()
-        DefXStd = opponents['X'].std()
-        DefYStd = opponents['Y'].std()
-        OffXStd = mates['X'].std()
-        OffYStd = mates['Y'].std()
+        OffCountWR = (offense['Position'] == 'WR').sum() + (s['Position'] == 'WR').sum()
+        DefXStd = defense['X'].std()
+        DefYStd = defense['Y'].std()
+        OffXStd = offense['X'].std()
+        OffYStd = offense['Y'].std()
         Acc = s['A'].values[0]
         SpeedX = np.abs(s['S'] * np.cos(rush_dir_rad)).values[0]
         SpeedY = np.abs(s['S'] * np.sin(rush_dir_rad)).values[0]
         Pos = s.Position.values[0]
 
         # interpretive/computed statistics
-        DistDefvsOff = dist_opponents.sum() - dist_mates.sum()
-        DistOffMean = dist_mates.mean()
-        DistDefMean = dist_opponents.mean()
-        DistDef = dist_opponents.min()
-        DistLOS = (s['LineOfScrimmage'] - s['X']).values[0] * \
-            np.where(s['PlayDirection'] == 'right', 1, -1)[0]
-        # DistGoal = \
-        #     110-s['X'].values[0] if s['PlayDirection'].values[0] == 'right' else s['X'].values[0]
+        DistDefvsOff = dist_def.sum() - dist_off.sum()
+        DistOffMean = dist_off.mean()
+        DistDefMean = dist_def.mean()
+        DistDef = dist_def.min()
+        DistLOS = (s['LineOfScrimmage'] - s['X']).values[0]
 
         # saving results
         d = {"DistLOS": DistLOS, "DistDef": DistDef,
@@ -145,19 +141,21 @@ class FeatureGenerator:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv('../input/train.csv', low_memory=False)
-    cleaner = DataCleaner(data)
-    data = cleaner.clean_data(data)
+    data = pd.read_csv('../input/trainClean_py.csv', low_memory=False).set_index("PlayId")
     ctor = FeatureGenerator()  # feature constructor
     dfSub = data.filter(like="20170907000118", axis=0)
     x, y, PlayId = ctor.make_features(dfSub)
     x
+    x, y, PlayId = ctor.make_features(dfSub, ["DistanceToLOS"])
+    x
     dfSub = dfSub.drop("Yards", axis=1)
     x, PlayId = ctor.make_features(dfSub, test=True)
     x
-    x, y, PlayId = ctor.make_features(data, ["DistanceToLOS"])
-    x.head()
+    x, PlayId = ctor.make_features(dfSub, features=["DistanceToLOS"], test=True)
+    x
     x, y, PlayId = ctor.make_features(data)
     x.head()
-    x.to_csv("../input/features1_py.csv")
-    y.to_csv("../input/trainResponse_py.csv")
+    for c in x.columns:
+        print(x[c].sample(10))
+    x.to_csv("../input/features_py.csv")
+    y.to_csv("../input/response_py.csv")
