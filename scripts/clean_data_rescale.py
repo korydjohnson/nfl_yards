@@ -23,11 +23,12 @@ class DataCleaner:
         # Categorical Columns: update here to include stadium type
         self.categoricals = ["PossessionTeam", "FieldPosition", "HomeTeamAbbr", "VisitorTeamAbbr",
                              "OffenseFormation", "OffensePersonnel", "DefensePersonnel", "Down",
-                             "Quarter", "Turf", "GameWeather", "Position"]
+                             "Quarter", "Turf", "GameWeather"]
         self.categories = {col: [val for val in df[col].unique() if pd.notna(val)]
                            for col in self.categoricals}
         # fixing abbreviations
-        self.map_Teams = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU"}
+        # self.map_Teams = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU"}
+        self.map_Teams = {"ARI": "ARZ", "BAL": "BLT", "CLE": "CLV", "HOU": "HST"}
 
         # don't miss a team and all categories for teams must match
         self.col_teams = ["PossessionTeam", "FieldPosition", "HomeTeamAbbr", "VisitorTeamAbbr"]
@@ -44,7 +45,6 @@ class DataCleaner:
         self.categorical_imputeVal = {
             'PossessionTeam': 'NE', 'FieldPosition': 'BUF',
             'HomeTeamAbbr': 'SF', 'VisitorTeamAbbr': 'LA',
-            'Position': 'CB',
             'OffenseFormation': 'SINGLEBACK',
             'OffensePersonnel': '1 RB, 1 TE, 3 WR',
             'DefensePersonnel': '4 DL, 2 LB, 5 DB',
@@ -123,8 +123,6 @@ class DataCleaner:
         self.categories["GameWeather"] = newNames
 
     def create_categoricals(self, df):
-        df.replace(self.map_Teams)
-
         for col in self.categoricals:
             # fill missing or new categories with most frequent
             df.loc[~df[col].isin(self.categories[col]), col] = self.categorical_imputeVal[col]
@@ -187,6 +185,7 @@ class DataCleaner:
         df["GameWeather"] = df["GameWeather"].map(self.map_GameWeather, na_action='ignore')
 
         # update categoricals in-place, done after collapsing categories
+        df = df.replace({"VisitorTeamAbbr": self.map_Teams, "HomeTeamAbbr": self.map_Teams})
         self.create_categoricals(df)
 
         # rescale location; adds LineOfScrimmage

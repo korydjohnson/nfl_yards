@@ -42,12 +42,6 @@ class FeatureGenerator:
     def snow(self, df):
         pass
 
-    def isOpening(self, df):
-        pass
-
-    def openingSize(self, df):
-        pass
-
     def specialYardIndicators(self, df):
         # First and ten/15/20
         pass
@@ -55,11 +49,8 @@ class FeatureGenerator:
     def timeTillHandoff(self, df):
         pass
 
-    def positionOfRunner(self, df):
-        pass
-
     @staticmethod
-    def f_TeamInfo(dfP):
+    def f_Team(dfP):
         offense = dfP[dfP.OnOffense]
         defense = dfP[~dfP.OnOffense]
         DefXStd = defense['X'].std()
@@ -73,9 +64,8 @@ class FeatureGenerator:
              "OffCountWR": OffCountWR, "DefDistLOS": DefDistLOS, "OffDistLOS": OffDistLOS}
         return d
 
-    @staticmethod
-    def f_RusherInfo(dfP):
-        # set-up
+    def f_Rusher(self, dfP):
+        # set up
         s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
         rush_dir_rad = (90 - s['Dir']) * np.pi / 180.0
         offense = dfP[dfP.OnOffense]
@@ -98,11 +88,51 @@ class FeatureGenerator:
         DistDefMean = dist_def.mean()
         DistLOS = (s['LineOfScrimmage'] - s['X']).values[0]
 
-        # saving results
+        # output
         d = {"DistLOS": DistLOS, "DistDef": DistDef, "Acc": Acc,
              "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
              "DistOffMean": DistOffMean, "DistDefMean": DistDefMean,
-             "ADef": ADef, "SDef": SDef}
+             "ADef": ADef, "SDef": SDef,
+             "Gap": self.Gap(s, DistLOS, offense, defense)}
+        return d
+
+    @staticmethod
+    def Gap(s, DistLOS, offense, defense, gapMult=1):
+        # set up: compute gap location and size. Running toward edge if gap isn't entirely in field.
+        Dir = s.Dir.values[0]
+        ToEdge = 1
+        if 0 <= Dir < 180:
+            angle = min(Dir, 180 - Dir)
+            deltaY = DistLOS / np.tan(angle * np.pi / 180.0)
+            GapCenter = s.Y.values[0] + (-1)**(Dir > 90) * deltaY
+            GapRadius = gapMult * DistLOS
+            if GapCenter - GapRadius > 0 and GapCenter + GapRadius < 160 / 3:
+                ToEdge = 0
+        if 180 <= Dir <= 360 or ToEdge:
+            side = "up" if 270 <= Dir or Dir < 90 else "down"
+            GapCenter = (160 / 3 + s.Y.values[0]) / 2 if side == "up" else s.Y.values[0] / 2
+            GapRadius = np.abs(GapCenter - s.Y.values[0])
+            ToEdge = 1
+
+        # compute statistics
+        off_DistToGap = np.sqrt((offense.X - offense.LineOfScrimmage)**2 +
+                                (offense.Y - GapCenter)**2)
+        def_DistToGap = np.sqrt((defense.X - defense.LineOfScrimmage) ** 2 +
+                                (defense.Y - GapCenter) ** 2)
+        nOff = (off_DistToGap < GapRadius).sum()
+        nDef = (def_DistToGap < GapRadius).sum()
+        NPlayers = nOff + nDef
+        AveSpace = NPlayers / GapRadius
+        TeamRatio = (nOff + 1)/(nDef + 1)  # prevents /0
+        defYLoc = defense[def_DistToGap < GapRadius].Y.to_list()
+        defYLoc.sort()
+        defYLoc.insert(0, GapCenter - GapRadius)
+        defYLoc.append(GapCenter + GapRadius)
+        OpenSize = np.diff(defYLoc).max()
+
+        # output
+        d = {"NPlayers": NPlayers, "AveSpace": AveSpace, "TeamRatio": TeamRatio,
+             "OpenSize": OpenSize, "ToEdge": ToEdge, "Center": GapCenter, "Radius": GapRadius}
         return d
 
     def new_features(self, dfP, methods):
@@ -151,4 +181,4 @@ if __name__ == "__main__":
     for c in x.columns:
         print(x[c].sample(10))
     x.to_csv("../input/features_py.csv")
-    y.to_csv("../input/response_py.csv")
+    # y.to_csv("../input/response_py.csv")

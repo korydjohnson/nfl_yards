@@ -34,6 +34,7 @@ This file
 ```{r}
 library(tidyverse)
 library(magrittr)
+library(ggforce)
 ```
 
 ### Load Data {-}
@@ -50,6 +51,7 @@ df %<>%
     X_end = S*cos((90-Dir)*pi/180) + X, 
     Y_end = S*sin((90-Dir)*pi/180) + Y
   )
+dfFeatures = loadData("features_py.csv")
 ```
 
 # Plot code from rescale file
@@ -59,26 +61,123 @@ Taken from https://www.kaggle.com/statsbymichaellopez/nfl-tracking-wrangling-vor
 ```{r}
 options(repr.plot.width=10, repr.plot.height=6)
 samp_play <- "20170910001102"
-df %>% 
-  filter(PlayId == samp_play) %>% 
-  ggplot(aes(X, Y, fill = ), colour = "black")  + 
-  geom_point(size = 4, pch = 21) + 
-  geom_segment(aes(x = X, y = Y, xend = X_end,
-                   yend = Y_end, colour = as.logical(OnOffense)), 
-              arrow = arrow(length = unit(.5,"cm"))) + 
-  geom_point(data = filter(df, NflId == NflIdRusher, 
-                           PlayId == samp_play), 
-             size = 1.5, pch = 21,
-             fill = "black") +
-  scale_colour_brewer(palette = "Set2")+ 
-  scale_fill_brewer(palette = "Set2")+ 
-  geom_vline(aes(xintercept = LineOfScrimmage), 
-             colour = "black", lty = 2) + 
-  scale_x_continuous(breaks = c(7:10)*10) + 
-  labs(x = "Distance from offensive team's own end zone", 
-       y = "Y coordinate", title = paste0("PlayId ", samp_play, ": player direction"), 
-       subtitle = "Offense moving left to right") + 
-  theme_bw(14) + 
-  theme(panel.grid.minor = element_blank(), 
-        panel.grid.major.y =element_blank())
+plotPlay = function(dfPlay, features=NULL, run=F) {
+  p = dfPlay %>% 
+    ggplot(aes(X, Y, color = OnOffense))  + 
+    geom_point(size = 2) + 
+    geom_segment(aes(x = X, y = Y, xend = X_end, yend = Y_end), 
+                 arrow = arrow(length = unit(.5,"cm"))) + 
+    geom_point(data = filter(dfPlay, NflId == NflIdRusher), 
+               pch=21, size = 1.5, fill = "black") +
+    # geom_point(data = filter(dfPlay, Position == "QB"), size = 2, fill = "blue") +
+    scale_colour_brewer(palette = "Set2")+ 
+    scale_fill_brewer(palette = "Set2")+ 
+    # geom_vline(aes(xintercept=0), color="grey") +
+    # geom_vline(aes(xintercept=10), color="grey") +
+    geom_vline(aes(xintercept = LineOfScrimmage), colour = "black", lty = 2) + 
+    coord_cartesian(ylim=c(0,160/3), expand=F) + #xlim = c(-10,110), 
+    labs(
+      x = "Distance from offensive team's own end zone", 
+      y = "Y", 
+      title = paste0("PlayId ", pull(dfPlay, PlayId)), 
+      subtitle = paste("Yards", dfPlay$Yards, "; ", "Down", dfPlay$Down)
+    ) + 
+    theme_bw(14) + 
+    theme(panel.grid.minor = element_blank(), panel.grid.major.y =element_blank())
+  if (run && !is.null(features)) {
+    dfC = circleDF(c(features$LineOfScrimmage, features$Rusher_Gap_Center),
+                   features$Rusher_Gap_Radius)
+    p + 
+      geom_path(data = dfC, aes(x, y), color="gold") +
+      labs(subtitle = paste("Yards", dfPlay$Yards, "; ", "Down", dfPlay$Down, "; ",
+                            "NPlayers", features$Rusher_Gap_NPlayers, "; ",
+                            "OpenSize", round(features$Rusher_Gap_OpenSize, 2)))
+  } else {
+    p
+  }
+}
+circleDF = function(center = c(0,0), r = 1, npoints = 100){
+    tt <- seq(0, 2*pi, length.out = npoints)
+    xx <- center[1] + r * cos(tt)
+    yy <- center[2] + r * sin(tt)
+    return(data.frame(x = xx, y = yy))
+}
+dfPlay = filter(df, PlayId == samp_play)
+features = filter(dfFeatures, PlayId == samp_play)
+plotPlay(dfPlay, features, run=T)
+```
+
+
+# Looking at Plays
+
+First, categorize runs: long, medium, short, bad
+```{r}
+ggplot(df) +
+  geom_density(aes(Yards))
+summary(df$Yards)
+df %<>%
+  mutate(YardsCategory = cut(Yards, breaks = c(-Inf, 0, 3, 6, Inf), 
+             labels=c("bad", "short", "med", "long")))
+table(df$YardsCategory)
+PlayId_long = df %>% 
+  filter(YardsCategory == "long") %>% 
+  pull(PlayId)
+PlayId_med = df %>% 
+  filter(YardsCategory == "med") %>% 
+  pull(PlayId)
+PlayId_short = df %>% 
+  filter(YardsCategory == "short") %>% 
+  pull(PlayId)
+PlayId_bad = df %>% 
+  filter(YardsCategory == "bad") %>% 
+  pull(PlayId)
+```
+
+Plot several runs from vector of ids
+```{r}
+plotPlays = function(ids, n=5) {
+  for (index in sample.int(length(ids), min(n, length(ids)))) {
+    id = ids[index]
+    dfPlay = filter(df, PlayId == id)
+    features = filter(dfFeatures, PlayId == id)
+    p = plotPlay(dfPlay, features, run=T)
+    print(p)
+  }
+}
+```
+
+## Long Runs
+```{r}
+plotPlays(PlayId_long)
+"20181007032152"
+```
+
+strange play
+```{r}
+plotPlays("20181007032152")
+filter(df, PlayId=="20181007032152")
+```
+
+## Medium Runs
+```{r}
+plotPlays(PlayId_med)
+```
+
+## Short Runs
+```{r}
+plotPlays(PlayId_short)
+```
+
+## Bad Runs
+```{r}
+plotPlays(PlayId_bad)
+```
+
+## To Edge
+
+```{r}
+edgePlays = dfFeatures %>% 
+  filter(Rusher_Gap_ToEdge == 1) %>% 
+  pull(PlayId)
+plotPlays(edgePlays)
 ```
