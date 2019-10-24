@@ -8,13 +8,12 @@ Feature Generation Function(s)
 
 NOTE:
     All (finished) feature functions need to start with "f_" and will be called in
-    ALPHABETICAL order. If make features using the features, need to put dependence
-    in name as "newFeatures_dependsOn". Where "dependsOn" function needs to come first.
-    While accurate naming isn't necessary, including "_" is.
+    ALPHABETICAL order. Since we are unnesting a dictionary, it is easy to have functions
+    call other functions. These secondary functions cannot start with "f_".
 NOTE:
     You can provide list of features to make_features, these are the feature names
     and need to match the functions. The "f_" will be appended in the function to
-    make creating the feature list nicer/simpler. Naming will be important still.
+    make creating the feature list nicer/simpler.
 """
 
 import pandas as pd
@@ -60,55 +59,51 @@ class FeatureGenerator:
         pass
 
     @staticmethod
-    def f_teaminfo(offense, defense):
-        OffCountWR = (offense['Position'] == 'WR').sum()
+    def f_TeamInfo(dfP):
+        offense = dfP[dfP.OnOffense]
+        defense = dfP[~dfP.OnOffense]
         DefXStd = defense['X'].std()
         DefYStd = defense['Y'].std()
         OffXStd = offense['X'].std()
         OffYStd = offense['Y'].std()
+        OffCountWR = offense['Position'].isin(['WR']).sum()
+        DefDistLOS = (defense.X - defense.LineOfScrimmage).abs().mean().__float__()
+        OffDistLOS = (offense.X - offense.LineOfScrimmage).abs().mean().__float__()
+        d = {"DefXStd": DefXStd, "DefYStd": DefYStd, "OffXStd": OffXStd, "OffYStd": OffYStd,
+             "OffCountWR": OffCountWR, "DefDistLOS": DefDistLOS, "OffDistLOS": OffDistLOS}
+        return d
 
     @staticmethod
     def f_RusherInfo(dfP):
-        # set-up rusher
-        bool_rusher = dfP['NflId'] == dfP['NflIdRusher']
-        s = dfP[bool_rusher]
+        # set-up
+        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
         rush_dir_rad = (90 - s['Dir']) * np.pi / 180.0
-        # set-up teams
-        offense = dfP[dfP.OnOffense & ~bool_rusher]
+        offense = dfP[dfP.OnOffense]
         defense = dfP[~dfP.OnOffense]
         dist_off = np.sqrt((offense.X - s['X'].values[0])**2 + (offense.Y - s['Y'].values[0])**2)
         dist_def = np.sqrt((defense.X - s['X'].values[0])**2 + (defense.Y - s['Y'].values[0])**2)
         closest_opponent = defense.loc[dist_def.idxmin(), :]
 
         # descriptive statistics
-        AccClosestvsRusher = (closest_opponent['A']-s['A']).values[0]
-        SpeedClosestvsRusher = (closest_opponent['S']-s['S']).values[0]
+        ADef = (closest_opponent['A']-s['A']).values[0]
+        SDef = (closest_opponent['S']-s['S']).values[0]
+        DistDef = dist_def.min()
         Acc = s['A'].values[0]
         SpeedX = np.abs(s['S'] * np.cos(rush_dir_rad)).values[0]
         SpeedY = np.abs(s['S'] * np.sin(rush_dir_rad)).values[0]
         Pos = s.Position.values[0]
 
         # interpretive/computed statistics
-        DistDefvsOff = dist_def.sum() - dist_off.sum()
-        DistOffMean = dist_off.mean()
+        DistOffMean = dist_off.mean() * 11 / 10  # rescale for rusher 0
         DistDefMean = dist_def.mean()
-        DistDef = dist_def.min()
         DistLOS = (s['LineOfScrimmage'] - s['X']).values[0]
 
         # saving results
-        d = {"DistLOS": DistLOS, "DistDef": DistDef,
-             "Acc": Acc, "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
-             "DistDefvsOff": DistDefvsOff, "DistOffMean": DistOffMean,
-             "DistDefMean": DistDefMean, "AccClosestvsRusher": AccClosestvsRusher,
-             "SpeedClosestvsRusher": SpeedClosestvsRusher,
-             "DefXStd": DefXStd, "DefYStd": DefYStd,
-             "OffXStd": OffXStd, "OffYStd": OffYStd,
-             "OffCountWR": OffCountWR}
+        d = {"DistLOS": DistLOS, "DistDef": DistDef, "Acc": Acc,
+             "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
+             "DistOffMean": DistOffMean, "DistDefMean": DistDefMean,
+             "ADef": ADef, "SDef": SDef}
         return d
-
-    @staticmethod
-    def f_DistanceToLOS(dfP):
-        return (dfP.X - dfP.LineOfScrimmage).abs().mean().__float__()
 
     def new_features(self, dfP, methods):
         out = {}
