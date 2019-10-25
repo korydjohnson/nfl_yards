@@ -45,6 +45,7 @@ loadData <- function(fileName = "train.csv", ...) {
     as_tibble()
 }
 df = loadData("trainClean.csv")
+df = loadData()
 dfTest = loadData("test.csv")
 ```
 
@@ -79,10 +80,22 @@ compareTest(df, dfTest, "A", 2017)
 
 # Check Raw Data
 
+strange observation
 ```{r}
 filter(df, PlayId=="20181007032152", NflId==NflIdRusher)
 ```
 
+# Heteroskedasticity
+
+Look at variability of yards in each category
+```{r}
+df %<>%
+  mutate(YardsCategory = cut(Yards, breaks = c(-Inf, 0, 3, 6, Inf), 
+             labels=c("bad", "short", "med", "long")))
+ggplot(df) + 
+  geom_histogram(aes(Yards), binwidth=1) + 
+  facet_wrap(~YardsCategory, scales="free_x")
+```
 
 # EDA {.tabset .tabset-fade}
 

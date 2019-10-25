@@ -48,8 +48,14 @@ loadData <- function(fileName = "train.csv", ...) {
   data.table::fread(file, ...) %>% 
     as_tibble()
 }
-theData = loadData("trainClean_py.csv")
-theResponse = loadData("trainResponse_py.csv") %>% 
+categorical = c("Down", "OffenseFormation", "Turf", "GameWeather", "Rusher_Pos")
+toRemove = c(1:12, 14:16, 21:28, 33)
+theData = loadData("features_py.csv") %>% 
+  select(-toRemove) %>% 
+  mutate_at(vars(categorical), as.factor)
+# dim(model.matrix(~., data=theData))
+# dim(model.matrix(~.^2, data=theData))
+theResponse = loadData("response_py.csv") %>% 
   pull(Yards)
 dim(theData); length(theResponse)
 # theData
@@ -58,19 +64,58 @@ dim(theData); length(theResponse)
 ### Helper Functions {-}
 
 ```{r}
-getProbs = function(est, sd, rangeY=NULL) {
+getProbs.norm = function(est, sd, rangeY=NULL, x=NULL, vB=NULL) {
   if (is.null(rangeY)) {
     rangeY = log(pmax(seq(-99,99) + 15, 0))
+  }
+  if (!is.null(x) && !is.null(vB)) {
+    x = as.matrix(x, ncol=1)
+    sd = sd*(1 + sqrt(t(x)%*%vB%*%x))
   }
   pnorm(rangeY, est, sd)
 }
 
-crps = function(probVec, y, rangeY=NULL) {
+getProbs.pois = function(est, rangeY=NULL) {
   if (is.null(rangeY)) {
-    rangeY = log(pmax(seq(-99,99) + 15, 0))
+    rangeY_pois_rel = (pmax(seq(-14,99) + 14, 0))^(1/4)
+    rangeY = c(rep(-1, 199-length(rangeY_pois_rel)), rangeY_pois_rel)
   }
+  ppois(rangeY, est)
+}
+
+getProbsInd = function(est, rangeY) {
+  rangeY >= est
+}
+
+crps = function(probVec, y, rangeY) {
   Hy = (rangeY >= y)
   mean((probVec-Hy)^2)
+}
+```
+
+Post process prob estimates
+```{r}
+rescaleProbs = function(probs, lims = c(-5,25)) {
+  rangeY = seq(-99,99)
+  lower = which(rangeY==lims[1])
+  upper = which(rangeY==lims[2])
+  relProbs = probs[lower:upper]
+  if (max(relProbs)==0) {
+    probs
+  } else {
+    c(rep(0, lower-1), relProbs/max(relProbs), rep(1, 199-upper))
+  }
+}
+```
+
+Plot Individual Predictions
+```{r}
+plotProbEst = function(probs, y, rangeY) {
+  Hy = as.integer(rangeY >= y)
+  tibble(probs, Hy, yards = seq(-99,99)) %>% 
+    gather(fnc, value, probs, Hy) %>% 
+    ggplot() +
+    geom_line(aes(yards, value, color=fnc))
 }
 ```
 
@@ -184,15 +229,24 @@ tibble(theResponse) %>%
 
 MLE transformed
 ```{r}
-theResponse = log(pmax(dfSub$Yards + 15, 0))
-(pred = mean(theResponse))
-(sd = sd(theResponse))
-tibble(theResponse) %>% 
+theResponse2 = log(pmax(theResponse + 15, 0))
+(pred = mean(theResponse2))
+(sd = sd(theResponse2))
+tibble(theResponse2) %>% 
   mutate(
     probEst = map2(pred, sd, getProbs),
-    crps = map2_dbl(probEst, theResponse, crps)
+    crps = map2_dbl(probEst, theResponse2, crps)
   ) %>% 
   summarise(crps = mean(crps))
+
+rangeY = log(pmax(seq(-99,99) + 15, 0))
+probs = getProbsInd(pred, rangeY)
+mean(map_dbl(theResponse2, crps, probVec=probs, rangeY=rangeY))
+
+probs = getProbsInd(pred, rangeY)
+for (i in 1:5) {
+  print(plotProbEst(probs, theResponse2[i], rangeY))
+}
 ```
 
 idk why normal seems to do poorly even though the estimated beta distribution looks essentially normal. Check same code for beta.
@@ -221,6 +275,46 @@ tibble(theResponse) %>%
 Hm, from this, beta seems to be on the same scale as normal, which makes sense. Checking with Danijel to see if he gets similar answers on training data. It is far higher than the results we get on the test data.
 
 Data Issue. All good now.
+
+## LM
+```{r}
+theResponse2 = log(pmax(theResponse + 15, 0))
+theData2 = model.matrix(~.,data=theData)
+vBeta = solve(crossprod(theData2))
+qqnorm(theResponse2)
+tibble(response = theResponse2) %>% 
+  ggplot() + 
+  geom_density(aes(response))
+lmOut = lm(theResponse2~.^2, data=theData)
+rangeY = log(pmax(seq(-99,99) + 15, 0))
+pred = lmOut$fitted.values
+
+distPreds = 
+  tibble(pred = lmOut$fitted.values, response = theResponse2,
+         data = split(theData2, row(theData2))) %>%
+  mutate(probsInd = map(pred, getProbsInd, rangeY=rangeY),
+         probsNorm_hom = map(pred, getProbs.norm, rangeY=rangeY, sd=summary(lmOut)$sigma),
+         probsNorm_hom2 = map(pred, getProbs.norm, rangeY=rangeY, sd=.2),
+         probsNorm_het = map2(pred, data, getProbs.norm, 
+                              rangeY=rangeY, sd=.2, vB=vBeta)) %>% 
+  # mutate_at(vars(starts_with("probs")), ~map(., rescaleProbs)) %>% 
+  mutate_at(vars(starts_with("probs")), ~map2_dbl(., response, crps, rangeY=rangeY))
+distPreds %>% 
+  summarise_at(vars(starts_with("probs")), mean)
+```
+
+
+Looking at some estimates
+```{r}
+probs = getProbsInd(pred, rangeY)
+for (i in 1:5) {
+  x = as.matrix(theData2[i,], ncol=1)
+  print(sqrt(t(x)%*%vBeta%*%x))
+  sd = summary(lmOut)$sigma
+  probs = getProbs.norm(pred[i], sd)
+  print(plotProbEst(probs, theResponse2[i], rangeY))
+}
+```
 
 # CV and Compute Error
 
@@ -342,4 +436,39 @@ tibble(theResponse) %>%
   summarise(crps = mean(crps))
 ```
 
-## Sub2 {-}
+# Poisson Regression
+
+Fit seems quite good; when get error just from 
+
+```{r}
+theResponse2 = (theResponse+14)^(1/4) 
+qqnorm(theResponse2)
+tibble(response = theResponse2) %>% 
+  ggplot() + 
+  geom_density(aes(response))
+
+rangeY_pois_rel = (pmax(seq(-14,99) + 14, 0))^(1/4)
+rangeY = c(rep(-1, 199-length(rangeY_pois_rel)), rangeY_pois_rel)
+glmOut = glm(theResponse2 ~., family = "poisson", data = theData)
+pred = glmOut$fitted.values
+mean(map2_dbl(pred, theResponse2, crps.pois))
+tibble(pred = pred, response = theResponse2) %>% 
+  mutate(probs = map(pred, getProbsInd, rangeY=rangeY),
+         err = map2_dbl(probs, response, crps, rangeY=rangeY)) %>% 
+  summarise(err = mean(err))
+
+tibble(pred, theResponse2) %>% 
+  mutate(diff = theResponse2-pred) %>% 
+  ggplot() +
+  geom_density(aes(diff))
+
+
+probs = getProbsInd(est, rangeY)
+rangeY_pois = (pmax(seq(-99,99) + 14, 0))^(1/4)
+plotProbEst(probs, y, rangeY_pois)
+probs = getProbsInd(pred, rangeY)
+for (i in 1:5) {
+  probs = getProbsInd(pred[i], rangeY)
+  print(plotProbEst(probs, theResponse2[i], rangeY))
+}
+```
