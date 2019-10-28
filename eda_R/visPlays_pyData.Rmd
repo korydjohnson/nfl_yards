@@ -152,13 +152,11 @@ plotPlays = function(ids, n=5) {
 ## Long Runs
 ```{r}
 plotPlays(PlayId_long)
-"20181007032152"
 ```
 
 strange play
 ```{r}
 plotPlays("20171210021098")
-filter(df, PlayId=="20181007032152")
 ```
 
 ## Medium Runs

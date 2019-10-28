@@ -98,7 +98,7 @@ class FeatureGenerator:
              "Gap": self.Gap(rusher, DistLOS, offense, defense)}
         return d
 
-    @staticmethod  # gapMult=1 sets gap radius as 1 second
+    @staticmethod  # gapMult=1 sets gap radius as 1 second; or gapRadius*rusherSpeed = distLOS
     def Gap(rusher, DistLOS, offense, defense, gapMult=1):
         # set up: compute gap location and size. Running toward edge if gap isn't entirely in field.
         Dir = rusher.Dir.values[0]
@@ -107,15 +107,16 @@ class FeatureGenerator:
             angle = min(Dir, 180 - Dir)
             deltaY = DistLOS / np.tan(angle * np.pi / 180.0)
             GapCenter = rusher.Y.values[0] + (-1)**(Dir > 90) * deltaY
-            GapRadius = (gapMult * DistLOS) / rusher.S.values[0]
-            if GapCenter - GapRadius > 0 and GapCenter + GapRadius < 160 / 3:
+            if 0 < GapCenter < 160 / 3:  # prev checked if entire ball in field
                 ToEdge = 0
         if 180 <= Dir <= 360 or ToEdge:
             side = "up" if 270 <= Dir or Dir < 90 else "down"
             GapCenter = (160 / 3 + rusher.Y.values[0]) / 2 if side == "up" \
                 else rusher.Y.values[0] / 2
-            GapRadius = (np.abs(GapCenter - rusher.Y.values[0])) / rusher.S.values[0]
-            ToEdge = 1
+            # GapRadius = (np.abs(GapCenter - rusher.Y.values[0])) / rusher.S.values[0]
+        DistDirLOS = np.sqrt((rusher.X - rusher.LineOfScrimmage) ** 2 +
+                             (rusher.Y - GapCenter) ** 2).values[0]
+        GapRadius = (gapMult * DistDirLOS) / rusher.S.values[0]  # prev DistLOS
 
         # compute statistics; who *will be* in gap/ball at LOS
         offense["X_end"] = offense.S * np.cos((90 - offense.Dir) * np.pi % 180) + offense.X
@@ -131,15 +132,17 @@ class FeatureGenerator:
         NPlayers = nOff + nDef
         AveSpace = NPlayers / GapRadius
         TeamRatio = (nOff + 1)/(nDef + 1)  # prevents /0
-        defYLoc = defense[def_DistToGap < GapRadius].Y.to_list()
-        defYLoc.sort()
-        defYLoc.insert(0, GapCenter - GapRadius)
-        defYLoc.append(GapCenter + GapRadius)
-        OpenSize = np.diff(defYLoc).max()
+        OpenSize = min(def_DistToGap)  # minimum time to center of gap
+        # defYLoc = defense[def_DistToGap < GapRadius].Y.to_list()
+        # defYLoc.sort()
+        # defYLoc.insert(0, GapCenter - GapRadius)
+        # defYLoc.append(GapCenter + GapRadius)
+        # OpenSize = np.diff(defYLoc).max()  # if using distance
 
         # output
         d = {"NPlayers": NPlayers, "AveSpace": AveSpace, "TeamRatio": TeamRatio,
-             "OpenSize": OpenSize, "ToEdge": ToEdge, "Center": GapCenter, "Radius": GapRadius}
+             "OpenSize": OpenSize, "ToEdge": ToEdge, "Center": GapCenter,
+             "Radius": GapRadius, "DistDirLOS": DistDirLOS}
         return d
 
     def new_features(self, dfP, methods):
