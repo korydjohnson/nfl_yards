@@ -61,6 +61,8 @@ dim(theData); length(theResponse)
 # theData
 ```
 
+
+
 ### Helper Functions {-}
 
 ```{r}
@@ -229,17 +231,17 @@ tibble(theResponse) %>%
 
 MLE transformed
 ```{r}
-theResponse2 = log(pmax(theResponse + 15, 0))
+theResponse2 = log(pmax(theResponse + 16, 1))
+rangeY = log(pmax(seq(-99,99) + 16, 1))
 (pred = mean(theResponse2))
 (sd = sd(theResponse2))
 tibble(theResponse2) %>% 
   mutate(
-    probEst = map2(pred, sd, getProbs),
-    crps = map2_dbl(probEst, theResponse2, crps)
+    probEst = map2(pred, sd, getProbs.norm),
+    crps = map2_dbl(probEst, theResponse2, crps, rangeY)
   ) %>% 
   summarise(crps = mean(crps))
 
-rangeY = log(pmax(seq(-99,99) + 15, 0))
 probs = getProbsInd(pred, rangeY)
 mean(map_dbl(theResponse2, crps, probVec=probs, rangeY=rangeY))
 
@@ -276,17 +278,18 @@ Hm, from this, beta seems to be on the same scale as normal, which makes sense. 
 
 Data Issue. All good now.
 
-## LM
+# LM
 ```{r}
-theResponse2 = log(pmax(theResponse + 15, 0))
+theResponse2 = log(pmax(theResponse + 16, 1))
 theData2 = model.matrix(~.,data=theData)
 vBeta = solve(crossprod(theData2))
 qqnorm(theResponse2)
 tibble(response = theResponse2) %>% 
   ggplot() + 
   geom_density(aes(response))
-lmOut = lm(theResponse2~.^2, data=theData)
-rangeY = log(pmax(seq(-99,99) + 15, 0))
+lmOut = lm(theResponse2~., data=theData)
+plot(lmOut)
+rangeY = log(pmax(seq(-99,99) + 16, 1))
 pred = lmOut$fitted.values
 
 distPreds = 
@@ -302,11 +305,12 @@ distPreds =
 distPreds %>% 
   summarise_at(vars(starts_with("probs")), mean)
 ```
-
+pure quadratic model got .01478 online; 2018 data 0.01482
+in samp gets 0.01317
 
 Looking at some estimates
 ```{r}
-probs = getProbsInd(pred, rangeY)
+# probs = getProbsInd(pred, rangeY)
 for (i in 1:5) {
   x = as.matrix(theData2[i,], ncol=1)
   print(sqrt(t(x)%*%vBeta%*%x))
@@ -316,41 +320,22 @@ for (i in 1:5) {
 }
 ```
 
-# CV and Compute Error
+See Predictions on Test Data
+```{r}
+theDataTe = loadData("featuresTest_py.csv") %>% 
+  select(-toRemove) %>% 
+  mutate_at(vars(categorical), as.factor)
+predTe = predict(lmOut, data=theDataTe)
+tibble(pred, predTe) %>% 
+  gather("sample", "value") %>% 
+  ggplot() +
+  geom_density(aes(value, color=sample, linetype=sample))
+```
 
-Test, not in code block just to prevent running via "Run All Chunks Above"
-
-df = loadData("trainClean.csv")
-dfSub = df %>% 
-  distinct(PlayId, .keep_all = T) %>%
-  # select(Yards, Distance, Down) %>% 
-  select(Yards, Distance, Down, YardLine, NflIdRusher, OffenseFormation,
-    OffensePersonnel, DefendersInTheBox, DefensePersonnel) %>%
-  mutate(
-    Down = as.factor(Down),
-    NflIdRusher = as.factor(NflIdRusher)
-  )
-
-theResponse = log(pmax(dfSub$Yards + 15, 0))
-theData = select(dfSub, -Yards)
-# theData = data.frame(rep(1, length(theResponse)))
-modelFnc = runLM
-modelFnc = rai
-predictCV(theResponse, theData, modelFnc)
-errorOOS(theResponse, theData, list("rai"=rai, "lm"=runLM))
-
-## Running Linear Models
+## RAI
 
 ```{r}
 theResponse2 = log(pmax(theResponse + 15, 0))
-covariates = c("Quarter", "PossessionTeam", "Down", "Distance", "OffenseFormation",
-  "DefendersInTheBox", "Turf", "GameWeather", "DistanceToGoal", "DistanceToLOS",
-  "RusherInfo_Acc", "RusherInfo_DistDef", "RusherInfo_DistLOS",
-  "RusherInfo_Pos", "RusherInfo_SpeedX", "RusherInfo_SpeedY" )
-categorical = c("Quarter", "PossessionTeam", "Down", "OffenseFormation", "Turf", "GameWeather", "RusherInfo_Pos")
-theData2 = theData %>% 
-  select(covariates) %>% 
-  mutate_at(vars(categorical), as.factor)
 modelFnc = rai
 # modelFnc = runLM
 out = predictCV(theResponse2, theData2, modelFnc)

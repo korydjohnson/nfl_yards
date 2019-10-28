@@ -1,5 +1,5 @@
 """
-Feature Generation Function(s)
+Feature Generation Function(rusher)
 1. Each function will define a new feature, a scaler per PLAY
 2. Can assumed given clean data (see clean_data.py)
 3. Final function calls all previous functions to generate new columns
@@ -26,7 +26,7 @@ class FeatureGenerator:
     def __init__(self):
         self.response = ["Yards"]
         self.time_features = ['TimeHandoff', 'TimeSnap']
-        # repeated features; PlayId excluded as it's the index; Yards for response
+        # repeated features; PlayId excluded as it'rusher the index; Yards for response
         self.repeated_features = ['Quarter', 'PossessionTeam', 'Down',
                                   'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
@@ -66,73 +66,83 @@ class FeatureGenerator:
 
     def f_Rusher(self, dfP):
         # set up
-        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
-        rush_dir_rad = (90 - s['Dir']) * np.pi / 180.0
-        offense = dfP[dfP.OnOffense]
-        defense = dfP[~dfP.OnOffense]
-        dist_off = np.sqrt((offense.X - s['X'].values[0])**2 + (offense.Y - s['Y'].values[0])**2)
-        dist_def = np.sqrt((defense.X - s['X'].values[0])**2 + (defense.Y - s['Y'].values[0])**2)
+        rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        rush_dir_rad = (90 - rusher.Dir) * np.pi / 180.0
+        offense = dfP[dfP.OnOffense].copy()
+        defense = dfP[~dfP.OnOffense].copy()
+        dist_off = np.sqrt((offense.X - rusher.X.values[0])**2 +
+                           (offense.Y - rusher.Y.values[0])**2)
+        dist_def = np.sqrt((defense.X - rusher.X.values[0])**2 +
+                           (defense.Y - rusher.Y.values[0])**2)
         closest_opponent = defense.loc[dist_def.idxmin(), :]
 
         # descriptive statistics
-        ADef = (closest_opponent['A']-s['A']).values[0]
-        SDef = (closest_opponent['S']-s['S']).values[0]
+        ADef = (closest_opponent.A-rusher.A).values[0]
+        SDef = (closest_opponent.S-rusher.S).values[0]
         DistDef = dist_def.min()
-        Acc = s['A'].values[0]
-        SpeedX = np.abs(s['S'] * np.cos(rush_dir_rad)).values[0]
-        SpeedY = np.abs(s['S'] * np.sin(rush_dir_rad)).values[0]
-        Pos = s.Position.values[0]
+        Acc = rusher.A.values[0]
+        SpeedX = np.abs(rusher.S * np.cos(rush_dir_rad)).values[0]
+        SpeedY = np.abs(rusher.S * np.sin(rush_dir_rad)).values[0]
+        Pos = rusher.Position.values[0]
 
         # interpretive/computed statistics
         DistOffMean = dist_off.mean() * 11 / 10  # rescale for rusher 0
         DistDefMean = dist_def.mean()
-        DistLOS = (s['LineOfScrimmage'] - s['X']).values[0]
+        DistLOS = (rusher['LineOfScrimmage'] - rusher['X']).values[0]
 
         # output
         d = {"DistLOS": DistLOS, "DistDef": DistDef, "Acc": Acc,
              "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
              "DistOffMean": DistOffMean, "DistDefMean": DistDefMean,
              "ADef": ADef, "SDef": SDef,
-             "Gap": self.Gap(s, DistLOS, offense, defense)}
+             "Gap": self.Gap(rusher, DistLOS, offense, defense)}
         return d
 
-    @staticmethod
-    def Gap(s, DistLOS, offense, defense, gapMult=1):
+    @staticmethod  # gapMult=1 sets gap radius as 1 second; or gapRadius*rusherSpeed = distLOS
+    def Gap(rusher, DistLOS, offense, defense, gapMult=1):
         # set up: compute gap location and size. Running toward edge if gap isn't entirely in field.
-        Dir = s.Dir.values[0]
+        Dir = rusher.Dir.values[0]
         ToEdge = 1
         if 0 <= Dir < 180:
             angle = min(Dir, 180 - Dir)
             deltaY = DistLOS / np.tan(angle * np.pi / 180.0)
-            GapCenter = s.Y.values[0] + (-1)**(Dir > 90) * deltaY
-            GapRadius = gapMult * DistLOS
-            if GapCenter - GapRadius > 0 and GapCenter + GapRadius < 160 / 3:
+            GapCenter = rusher.Y.values[0] + (-1)**(Dir > 90) * deltaY
+            if 0 < GapCenter < 160 / 3:  # prev checked if entire ball in field
                 ToEdge = 0
         if 180 <= Dir <= 360 or ToEdge:
             side = "up" if 270 <= Dir or Dir < 90 else "down"
-            GapCenter = (160 / 3 + s.Y.values[0]) / 2 if side == "up" else s.Y.values[0] / 2
-            GapRadius = np.abs(GapCenter - s.Y.values[0])
-            ToEdge = 1
+            GapCenter = (160 / 3 + rusher.Y.values[0]) / 2 if side == "up" \
+                else rusher.Y.values[0] / 2
+            # GapRadius = (np.abs(GapCenter - rusher.Y.values[0])) / rusher.S.values[0]
+        DistDirLOS = np.sqrt((rusher.X - rusher.LineOfScrimmage) ** 2 +
+                             (rusher.Y - GapCenter) ** 2).values[0]
+        GapRadius = (gapMult * DistDirLOS) / rusher.S.values[0]  # prev DistLOS
 
-        # compute statistics
-        off_DistToGap = np.sqrt((offense.X - offense.LineOfScrimmage)**2 +
-                                (offense.Y - GapCenter)**2)
-        def_DistToGap = np.sqrt((defense.X - defense.LineOfScrimmage) ** 2 +
-                                (defense.Y - GapCenter) ** 2)
+        # compute statistics; who *will be* in gap/ball at LOS
+        offense["X_end"] = offense.S * np.cos((90 - offense.Dir) * np.pi % 180) + offense.X
+        offense["Y_end"] = offense.S * np.sin((90 - offense.Dir) * np.pi % 180) + offense.Y
+        defense["X_end"] = defense.S * np.cos((90 - defense.Dir) * np.pi % 180) + defense.X
+        defense["Y_end"] = defense.S * np.sin((90 - defense.Dir) * np.pi % 180) + defense.Y
+        off_DistToGap = np.sqrt((offense.X_end - offense.LineOfScrimmage)**2 +
+                                (offense.Y_end - GapCenter)**2) / offense.S
+        def_DistToGap = np.sqrt((defense.X_end - defense.LineOfScrimmage) ** 2 +
+                                (defense.Y_end - GapCenter) ** 2) / defense.S
         nOff = (off_DistToGap < GapRadius).sum()
         nDef = (def_DistToGap < GapRadius).sum()
         NPlayers = nOff + nDef
         AveSpace = NPlayers / GapRadius
         TeamRatio = (nOff + 1)/(nDef + 1)  # prevents /0
-        defYLoc = defense[def_DistToGap < GapRadius].Y.to_list()
-        defYLoc.sort()
-        defYLoc.insert(0, GapCenter - GapRadius)
-        defYLoc.append(GapCenter + GapRadius)
-        OpenSize = np.diff(defYLoc).max()
+        OpenSize = min(def_DistToGap)  # minimum time to center of gap
+        # defYLoc = defense[def_DistToGap < GapRadius].Y.to_list()
+        # defYLoc.sort()
+        # defYLoc.insert(0, GapCenter - GapRadius)
+        # defYLoc.append(GapCenter + GapRadius)
+        # OpenSize = np.diff(defYLoc).max()  # if using distance
 
         # output
         d = {"NPlayers": NPlayers, "AveSpace": AveSpace, "TeamRatio": TeamRatio,
-             "OpenSize": OpenSize, "ToEdge": ToEdge, "Center": GapCenter, "Radius": GapRadius}
+             "OpenSize": OpenSize, "ToEdge": ToEdge, "Center": GapCenter,
+             "Radius": GapRadius, "DistDirLOS": DistDirLOS}
         return d
 
     def new_features(self, dfP, methods):
@@ -164,7 +174,7 @@ class FeatureGenerator:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv('../input/trainClean_py.csv', low_memory=False).set_index("PlayId")
+    data = pd.read_csv('./input/trainClean_py.csv', low_memory=False).set_index("PlayId")
     ctor = FeatureGenerator()  # feature constructor
     dfSub = data.filter(like="20170907000118", axis=0)
     x, y, PlayId = ctor.make_features(dfSub)
@@ -177,8 +187,15 @@ if __name__ == "__main__":
     x, PlayId = ctor.make_features(dfSub, features=["DistanceToLOS"], test=True)
     x
     x, y, PlayId = ctor.make_features(data)
-    x.head()
-    for c in x.columns:
-        print(x[c].sample(10))
-    x.to_csv("../input/features_py.csv")
+    # x.head()
+    # for c in x.columns:
+    #     print(x[c].sample(10))
+    x.to_csv("./input/features_py.csv")
     # y.to_csv("../input/response_py.csv")
+
+    # make features for test data
+    data = pd.read_csv('./input/testClean_py.csv', low_memory=False).set_index("PlayId")
+    ctor = FeatureGenerator()  # feature constructor
+    x, PlayId = ctor.make_features(data, test=True)
+    x.head()
+    x.to_csv("./input/featuresTest_py.csv")

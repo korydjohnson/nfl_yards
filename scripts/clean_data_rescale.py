@@ -214,3 +214,9 @@ if __name__ == "__main__":
     for c in dfClean.columns:
         print(dfClean[c].sample(10))
     dfClean.to_csv("../input/trainClean_py.csv")
+
+    # clean test data
+    data = pd.read_csv('./input/test.csv', low_memory=False)
+    cleaner = DataCleaner(data)
+    dfClean = cleaner.clean_data(data)
+    dfClean.to_csv("./input/testClean_py.csv")
