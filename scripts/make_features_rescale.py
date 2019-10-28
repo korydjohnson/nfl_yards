@@ -105,7 +105,7 @@ class FeatureGenerator:
             angle = min(Dir, 180 - Dir)
             deltaY = DistLOS / np.tan(angle * np.pi / 180.0)
             GapCenter = s.Y.values[0] + (-1)**(Dir > 90) * deltaY
-            GapRadius = gapMult * DistLOS
+            GapRadius = .5 * gapMult * DistLOS
             if GapCenter - GapRadius > 0 and GapCenter + GapRadius < 160 / 3:
                 ToEdge = 0
         if 180 <= Dir <= 360 or ToEdge:
@@ -164,7 +164,7 @@ class FeatureGenerator:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv('../input/trainClean_py.csv', low_memory=False).set_index("PlayId")
+    data = pd.read_csv('./input/trainClean_py.csv', low_memory=False).set_index("PlayId")
     ctor = FeatureGenerator()  # feature constructor
     dfSub = data.filter(like="20170907000118", axis=0)
     x, y, PlayId = ctor.make_features(dfSub)
@@ -182,3 +182,10 @@ if __name__ == "__main__":
         print(x[c].sample(10))
     x.to_csv("../input/features_py.csv")
     # y.to_csv("../input/response_py.csv")
+
+    # make features for test data
+    data = pd.read_csv('./input/testClean_py.csv', low_memory=False).set_index("PlayId")
+    ctor = FeatureGenerator()  # feature constructor
+    x, PlayId = ctor.make_features(data, test=True)
+    x.head()
+    x.to_csv("./input/featuresTest_py.csv")

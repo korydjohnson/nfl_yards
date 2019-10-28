@@ -57,7 +57,9 @@ df %>%
 ```
 
 
-# Compare Features to Test Set
+# Compare Train and Test Data
+
+## Raw Data
 
 ```{r}
 compareTest = function(dfTrain, dfTest, feature, year=NULL) {
@@ -78,6 +80,7 @@ compareTest = function(dfTrain, dfTest, feature, year=NULL) {
 compareTest(df, dfTest, "A", 2017)
 ```
 
+## Extracted Features
 # Check Raw Data
 
 strange observation

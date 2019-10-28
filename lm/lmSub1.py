@@ -8,8 +8,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from scipy.stats import norm
 
-# from kaggle.competitions import nflrush
-from input.kaggle.competitions import nflrush
+# from input.kaggle.competitions import nflrush
+from kaggle.competitions import nflrush
 env = nflrush.make_env()
 
 ################################################################################
@@ -354,21 +354,16 @@ class FeatureGenerator:
 # Rescale Probabilities
 ################################################################################
 
-def rescale_probabilities(probVec, lims=[-5, 25]):
-    probVec = probVec.tolist()
-    rangeY_true = np.arange(-99, 100).tolist()
-    lower = rangeY_true.index(lims[0])
-    upper = rangeY_true.index(lims[1])
-    probNew = list()
-    for index in range(len(probVec)):
-        if index <= lower:
-            probNew.append(0)
-        elif index > upper:
-            probNew.append(1)
-        else:
-            probNew.append(probVec[index]/probVec[upper-1])
-    return probNew
-rescale_probabilities(probs)
+def rescale_probabilities(probsVec, lims=[-5, 25]):
+    rangeY_true = np.arange(-99, 100)
+    lower = np.where(rangeY_true == lims[0])[0].__int__()
+    upper = np.where(rangeY_true == lims[1])[0].__int__()
+    probsSel = probsVec[lower:upper]
+    probsSel = probsSel/max(probsSel)
+    probsN = np.concatenate((np.repeat(0, lower, axis=0), probsSel,
+                             np.repeat(1, 199 - upper, axis=0)), axis=0)
+    return probsN
+
 ################################################################################
 # Reading, Preprocessing, Fit Model
 ################################################################################
@@ -386,16 +381,17 @@ print('- get features')
 featgenerator = FeatureGenerator()
 xtr, ytr, playid_tr = featgenerator.make_features(df_tr, test=False)
 # xtr = pd.read_csv('./input/features_py.csv', low_memory=False).set_index("PlayId")
-# ytr = pd.read_csv('./input/response_py.csv', low_memory=False).Yards
+# ytr = pd.read_csv('./input/response_py.csv', low_memory=False).set_index("PlayId")
 
-
+print('- lm prep')
 # transform y
-ytr = np.log(np.clip(ytr - min(ytr) + 1, 0, None))
+minY = -1 * min(ytr.Yards)
+ytr = np.log(ytr + minY + 2)  # min val is log(2), use log(1) for truncated range
+
 
 # transform x
-toRemove = np.append(np.arange(11), np.arange(12, 15))
-toRemove = np.append(toRemove, np.arange(19, 27))
-toRemove = np.append(toRemove, 31)
+toRemove = np.concatenate((np.arange(11), np.arange(12, 15), np.arange(19, 27),
+                           np.array([31])), axis=0)
 xtr = xtr.drop(xtr.columns[toRemove], axis=1)
 
 categoricalCl = ["Down", "OffenseFormation", "Turf", "GameWeather"]
@@ -409,23 +405,24 @@ for col in categoricalFea:
     xtr[col] = pd.Categorical(xtr[col], categories=categoriesFea[col])
 xtr = pd.get_dummies(xtr, prefix_sep="_", drop_first=True)
 
-# get polynomials and fit model
+print('- estimate model')
 polyFeat = PolynomialFeatures(degree=2)
 xtr2 = polyFeat.fit_transform(xtr)
 lm = LinearRegression()
 lm.fit(xtr2, ytr)
-rangeY = np.log(np.clip(np.arange(-99, 100) + 15, 0, None))
+rangeY = np.log(np.clip(np.arange(-99, 100) + minY + 2, 1, None))
 
 # for (df_te, sample_prediction_df) in env.iter_test():
 #     pass
 # lm.predict(xtr2)
+print('- make predictions on test set')
 for i, (df_te, sample_prediction_df) in enumerate(env.iter_test()):
     if i % 100 == 0:
         print('  - Iter %d' % (i + 1))
 
     df_te = cleaner.clean_data(df_te)
     xte, playid_te = featgenerator.make_features(df_te, test=True)
-    # df = df.reindex(sorted(df.columns), axis=1)
+
     # process for lm
     xte = xte.drop(xte.columns[toRemove], axis=1)
     for col in categoricalCl:
@@ -437,8 +434,8 @@ for i, (df_te, sample_prediction_df) in enumerate(env.iter_test()):
     # get predictions and cdf
     xte2 = polyFeat.fit_transform(xte)
     pred = lm.predict(xte2).__float__()
-    probs = norm.cdf(rangeY, pred, .2).reshape(1, -1)
-    df_pred = pd.DataFrame(data=probs, columns=sample_prediction_df.columns)
+    probs = rescale_probabilities(norm.cdf(rangeY, pred, .2))
+    df_pred = pd.DataFrame(data=probs.reshape(1, -1), columns=sample_prediction_df.columns)
     env.predict(df_pred)
 
 env.write_submission_file()

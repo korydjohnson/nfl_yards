@@ -61,6 +61,8 @@ dim(theData); length(theResponse)
 # theData
 ```
 
+
+
 ### Helper Functions {-}
 
 ```{r}
@@ -306,7 +308,7 @@ distPreds %>%
 
 Looking at some estimates
 ```{r}
-probs = getProbsInd(pred, rangeY)
+# probs = getProbsInd(pred, rangeY)
 for (i in 1:5) {
   x = as.matrix(theData2[i,], ncol=1)
   print(sqrt(t(x)%*%vBeta%*%x))
@@ -314,6 +316,18 @@ for (i in 1:5) {
   probs = getProbs.norm(pred[i], sd)
   print(plotProbEst(probs, theResponse2[i], rangeY))
 }
+```
+
+See Predictions on Test Data
+```{r}
+theDataTe = loadData("featuresTest_py.csv") %>% 
+  select(-toRemove) %>% 
+  mutate_at(vars(categorical), as.factor)
+predTe = predict(lmOut, data=theDataTe)
+tibble(pred, predTe) %>% 
+  gather("sample", "value") %>% 
+  ggplot() +
+  geom_density(aes(value, color=sample, linetype=sample))
 ```
 
 # CV and Compute Error
