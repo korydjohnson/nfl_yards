@@ -10,4 +10,5 @@
 \input
 .Rproj.user
 *_cache*
+*_files*
 *.idea

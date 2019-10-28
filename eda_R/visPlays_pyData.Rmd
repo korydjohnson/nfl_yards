@@ -62,6 +62,9 @@ Taken from https://www.kaggle.com/statsbymichaellopez/nfl-tracking-wrangling-vor
 options(repr.plot.width=10, repr.plot.height=6)
 samp_play <- "20170910001102"
 plotPlay = function(dfPlay, features=NULL, run=F) {
+  rusherSpeed = dfPlay %>% 
+    filter(NflId == NflIdRusher) %>% 
+    pull(S)
   p = dfPlay %>% 
     ggplot(aes(X, Y, color = OnOffense))  + 
     geom_point(size = 2) + 
@@ -86,7 +89,7 @@ plotPlay = function(dfPlay, features=NULL, run=F) {
     theme(panel.grid.minor = element_blank(), panel.grid.major.y =element_blank())
   if (run && !is.null(features)) {
     dfC = circleDF(c(features$LineOfScrimmage, features$Rusher_Gap_Center),
-                   features$Rusher_Gap_Radius)
+                   features$Rusher_Gap_Radius*rusherSpeed)
     p + 
       geom_path(data = dfC, aes(x, y), color="gold") +
       labs(subtitle = paste("Yards", dfPlay$Yards, "; ", "Down", dfPlay$Down, "; ",
@@ -154,7 +157,7 @@ plotPlays(PlayId_long)
 
 strange play
 ```{r}
-plotPlays("20181007032152")
+plotPlays("20171210021098")
 filter(df, PlayId=="20181007032152")
 ```
 
