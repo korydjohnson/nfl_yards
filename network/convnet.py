@@ -1,8 +1,6 @@
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from scipy.stats import norm
 from scipy.ndimage.filters import gaussian_filter as gfilt
 
 import torch
@@ -89,7 +87,8 @@ class DataGenerator:
         y = []
         for id in ids:
             dfs = self.df[self.df['PlayId'] == id].reset_index(drop=True)
-            xi, yi = self.play_to_array(dfs)
+            # xi, yi = self.play_to_array(dfs)
+            xi, yi = self.play_to_heatmap(dfs)
             x.append(xi)
             y.append(yi)
 
@@ -126,45 +125,46 @@ class DataGenerator:
 
         return x, y
 
-    @staticmethod
-    def player_vec(player, times, scale=True):
+    def player_vec(self, player, times, LOS, scale=True):
         dirRad = (90 - player.Dir) * np.pi % 180
         speedVec = player.S + player.A*times
+
         xVec = player.X + np.cos(dirRad)*(player.S*times + player.A*times**2/2)
+        xVec = np.clip(xVec.round(), -10, 110).astype(int)
+        xVec = np.clip(xVec - LOS + 21, 0, 41)  # crop to 41 yard field
+
         yVec = player.Y + np.sin(dirRad)*(player.S*times + player.A*times**2/2)
-        wVec = (1 - speedVec/sum(speedVec))/2
+        yVec = np.clip(yVec.round(), 0, 53).astype(int)
+
+        wVec = (1 - speedVec/sum(speedVec))/2 if sum(speedVec) > 0 else np.repeat(1, len(times))
         wVec = wVec/max(wVec) if scale else wVec
 
-        return xVec.round().astype(int), yVec.round().astype(int), wVec
+        return xVec, yVec, wVec
 
-    @staticmethod
-    def crop_field(array):
-        pass
-
-    def play_to_heatmap(self, dfP, filt=False, test=True, s=.5, w=3, nPoints=3):
+    def play_to_heatmap(self, dfP, filt=False, test=False, s=.5, w=3, nPoints=3):
         times = np.linspace(0, 1, nPoints+2)
-        t = (((w - 1) / 2) - 0.5) / s
         rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        LOS = rusher.LineOfScrimmage.values[0]
         offense = dfP[dfP.OnOffense]
         defense = dfP[~dfP.OnOffense]
-        x = np.zeros((1, 3, 120, 53))
+        x = np.zeros((1, 3, 42, 54))
 
         # fill player location vectors
-        xpos, ypos, w = self.player_vec(rusher.squeeze(), times)
+        xpos, ypos, w = self.player_vec(rusher.squeeze(), times, LOS)
         x[0, 0, xpos, ypos] = w
 
         for player in offense.itertuples(index=False):
-            xpos, ypos, w = self.player_vec(player, times)
+            xpos, ypos, w = self.player_vec(player, times, LOS)
             x[0, 1, xpos, ypos] = w
 
         for player in defense.itertuples(index=False):
-            xpos, ypos, w = self.player_vec(player, times)
+            xpos, ypos, w = self.player_vec(player, times, LOS)
             x[0, 2, xpos, ypos] = w
 
-        # crop and filter
-        if filt:
-            for i in range(3):
-                x[0, i, :, :] = gfilt(x[0, i, :, :], sigma=s, truncate=t)
+        if filt:  # filter
+            t = (((w - 1) / 2) - 0.5) / s
+            for dim in range(3):
+                x[0, dim, :, :] = gfilt(x[0, dim, :, :], sigma=s, truncate=t)
 
         if test:
             return x
@@ -176,17 +176,22 @@ class DataGenerator:
 
 
 if __name__ == "__main__":
-    df_tr = pd.read_csv('./input/trainClean_py.csv', low_memory=False).set_index("PlayId")
-    playids_tr = df_tr.index
-    dfSub = df_tr.filter(like="20170907000118", axis=0)
+    df_tr = pd.read_csv('./input/trainClean_py.csv', low_memory=False)
+    playids_tr = df_tr.PlayId
     tr = DataGenerator(df_tr, playids_tr)
+    dfSub = df_tr[df_tr.PlayId == 20181230154157]
+    self = tr
+    dfP = dfSub
+    # tr.play_to_heatmap(dfSub, test=False, s=.5, nPoints=3, filt=False)
+    # x, y = tr.get_features(np.arange(1, len(playids_tr)))
 
     import matplotlib.pyplot as plt
     x, y = tr.play_to_heatmap(dfSub, test=False, s=.5, nPoints=3, filt=False)
-    x = x[0,:,:,:]
+    x = x[0, :, :, :]
     a = []
-    for i in range(3): a.append(x[i,:,:])
-    a = np.stack(a,axis=2)
+    for i in range(3):
+        a.append(x[i, :, :])
+    a = np.stack(a, axis=2)
 
     plt.imshow(a)
     plt.show()

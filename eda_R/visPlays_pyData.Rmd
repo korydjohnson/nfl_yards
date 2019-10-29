@@ -35,7 +35,6 @@ This file
 ```{r}
 library(tidyverse)
 library(magrittr)
-library(ggforce)
 ```
 
 ### Load Data {-}
@@ -150,14 +149,16 @@ plotPlays = function(ids, n=5) {
 }
 ```
 
+## Individual Plays
+
+```{r}
+plotPlays("20181230154157")
+20181230154157
+```
+
 ## Long Runs
 ```{r}
 plotPlays(PlayId_long)
-```
-
-strange play
-```{r}
-plotPlays("20171210021098")
 ```
 
 ## Medium Runs

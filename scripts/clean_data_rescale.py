@@ -206,14 +206,14 @@ class DataCleaner:
 
 
 if __name__ == "__main__":
-    data = pd.read_csv('../input/train.csv', low_memory=False)
+    data = pd.read_csv('./input/train.csv', low_memory=False)
     # df = data.copy(deep=True)
     # data = df.copy(deep=True)
     cleaner = DataCleaner(data)
     dfClean = cleaner.clean_data(data)
     for c in dfClean.columns:
         print(dfClean[c].sample(10))
-    dfClean.to_csv("../input/trainClean_py.csv")
+    dfClean.to_csv("./input/trainClean_py.csv")
 
     # clean test data
     data = pd.read_csv('./input/test.csv', low_memory=False)
