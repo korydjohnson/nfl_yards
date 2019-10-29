@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import norm
+from scipy.ndimage.filters import gaussian_filter as gfilt
 
 import torch
 import torch.nn as nn
@@ -100,7 +101,8 @@ class DataGenerator:
 
         return x, y
 
-    def play_to_array(self, df):
+    @staticmethod
+    def play_to_array(df):
         rusher = df[df['NflId'] == df['NflIdRusher']]
         offense = df[df.OnOffense]
         defense = df[~df.OnOffense]
@@ -124,4 +126,67 @@ class DataGenerator:
 
         return x, y
 
+    @staticmethod
+    def player_vec(player, times, scale=True):
+        dirRad = (90 - player.Dir) * np.pi % 180
+        speedVec = player.S + player.A*times
+        xVec = player.X + np.cos(dirRad)*(player.S*times + player.A*times**2/2)
+        yVec = player.Y + np.sin(dirRad)*(player.S*times + player.A*times**2/2)
+        wVec = (1 - speedVec/sum(speedVec))/2
+        wVec = wVec/max(wVec) if scale else wVec
 
+        return xVec.round().astype(int), yVec.round().astype(int), wVec
+
+    @staticmethod
+    def crop_field(array):
+        pass
+
+    def play_to_heatmap(self, dfP, filt=False, test=True, s=.5, w=3, nPoints=3):
+        times = np.linspace(0, 1, nPoints+2)
+        t = (((w - 1) / 2) - 0.5) / s
+        rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        offense = dfP[dfP.OnOffense]
+        defense = dfP[~dfP.OnOffense]
+        x = np.zeros((1, 3, 120, 53))
+
+        # fill player location vectors
+        xpos, ypos, w = self.player_vec(rusher.squeeze(), times)
+        x[0, 0, xpos, ypos] = w
+
+        for player in offense.itertuples(index=False):
+            xpos, ypos, w = self.player_vec(player, times)
+            x[0, 1, xpos, ypos] = w
+
+        for player in defense.itertuples(index=False):
+            xpos, ypos, w = self.player_vec(player, times)
+            x[0, 2, xpos, ypos] = w
+
+        # crop and filter
+        if filt:
+            for i in range(3):
+                x[0, i, :, :] = gfilt(x[0, i, :, :], sigma=s, truncate=t)
+
+        if test:
+            return x
+        else:
+            tmp = np.zeros((1, 199))
+            tmp[0, rusher.Yards + 99] = 1
+            y = tmp.cumsum(axis=1)
+            return x, y
+
+
+if __name__ == "__main__":
+    df_tr = pd.read_csv('./input/trainClean_py.csv', low_memory=False).set_index("PlayId")
+    playids_tr = df_tr.index
+    dfSub = df_tr.filter(like="20170907000118", axis=0)
+    tr = DataGenerator(df_tr, playids_tr)
+
+    import matplotlib.pyplot as plt
+    x, y = tr.play_to_heatmap(dfSub, test=False, s=.5, nPoints=3, filt=False)
+    x = x[0,:,:,:]
+    a = []
+    for i in range(3): a.append(x[i,:,:])
+    a = np.stack(a,axis=2)
+
+    plt.imshow(a)
+    plt.show()

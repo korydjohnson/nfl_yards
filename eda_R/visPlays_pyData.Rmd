@@ -19,6 +19,7 @@ opts_chunk$set(echo = TRUE,
                strip.white = TRUE,
                warning = FALSE,
                message = FALSE,
+               cache = FALSE,
                out.width = "70%",
                fig.align = "center")
 ```
