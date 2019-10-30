@@ -66,29 +66,27 @@ class FeatureGenerator:
 
     def f_Rusher(self, dfP):
         # set up
-        rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']]
+        rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']].squeeze()
         rush_dir_rad = (90 - rusher.Dir) * np.pi / 180.0
         offense = dfP[dfP.OnOffense].copy()
         defense = dfP[~dfP.OnOffense].copy()
-        dist_off = np.sqrt((offense.X - rusher.X.values[0])**2 +
-                           (offense.Y - rusher.Y.values[0])**2)
-        dist_def = np.sqrt((defense.X - rusher.X.values[0])**2 +
-                           (defense.Y - rusher.Y.values[0])**2)
-        closest_opponent = defense.loc[dist_def.idxmin(), :]
+        dist_off = np.sqrt((offense.X - rusher.X)**2 + (offense.Y - rusher.Y)**2).values
+        dist_def = np.sqrt((defense.X - rusher.X)**2 + (defense.Y - rusher.Y)**2).values
 
         # descriptive statistics
-        ADef = (closest_opponent.A-rusher.A).values[0]
-        SDef = (closest_opponent.S-rusher.S).values[0]
         DistDef = dist_def.min()
-        Acc = rusher.A.values[0]
-        SpeedX = np.abs(rusher.S * np.cos(rush_dir_rad)).values[0]
-        SpeedY = np.abs(rusher.S * np.sin(rush_dir_rad)).values[0]
-        Pos = rusher.Position.values[0]
+        closest_opponent = defense.iloc[np.argmin(dist_def)]
+        ADef = closest_opponent.A-rusher.A
+        SDef = closest_opponent.S-rusher.S
+        Acc = rusher.A
+        SpeedX = np.abs(rusher.S * np.cos(rush_dir_rad))
+        SpeedY = np.abs(rusher.S * np.sin(rush_dir_rad))
+        Pos = rusher.Position
 
         # interpretive/computed statistics
         DistOffMean = dist_off.mean() * 11 / 10  # rescale for rusher 0
         DistDefMean = dist_def.mean()
-        DistLOS = (rusher['LineOfScrimmage'] - rusher['X']).values[0]
+        DistLOS = rusher.LineOfScrimmage - rusher.X
 
         # output
         d = {"DistLOS": DistLOS, "DistDef": DistDef, "Acc": Acc,
@@ -101,22 +99,20 @@ class FeatureGenerator:
     @staticmethod  # gapMult=1 sets gap radius as 1 second; or gapRadius*rusherSpeed = distLOS
     def Gap(rusher, DistLOS, offense, defense, gapMult=1):
         # set up: compute gap location and size. Running toward edge if gap isn't entirely in field.
-        Dir = rusher.Dir.values[0]
+        Dir = rusher.Dir
         ToEdge = 1
         if 0 <= Dir < 180:
             angle = min(Dir, 180 - Dir)
             deltaY = DistLOS / np.tan(angle * np.pi / 180.0)
-            GapCenter = rusher.Y.values[0] + (-1)**(Dir > 90) * deltaY
+            GapCenter = rusher.Y + (-1)**(Dir > 90) * deltaY
             if 0 < GapCenter < 160 / 3:  # prev checked if entire ball in field
                 ToEdge = 0
         if 180 <= Dir <= 360 or ToEdge:
             side = "up" if 270 <= Dir or Dir < 90 else "down"
-            GapCenter = (160 / 3 + rusher.Y.values[0]) / 2 if side == "up" \
-                else rusher.Y.values[0] / 2
+            GapCenter = (160 / 3 + rusher.Y) / 2 if side == "up" else rusher.Y / 2
             # GapRadius = (np.abs(GapCenter - rusher.Y.values[0])) / rusher.S.values[0]
-        DistDirLOS = np.sqrt((rusher.X - rusher.LineOfScrimmage) ** 2 +
-                             (rusher.Y - GapCenter) ** 2).values[0]
-        GapRadius = (gapMult * DistDirLOS) / rusher.S.values[0]  # prev DistLOS
+        DistDirLOS = np.sqrt((rusher.X - rusher.LineOfScrimmage) ** 2 + (rusher.Y - GapCenter) ** 2)
+        GapRadius = (gapMult * DistDirLOS) / rusher.S if rusher.S > 0 else gapMult * DistDirLOS
 
         # compute statistics; who *will be* in gap/ball at LOS
         offense["X_end"] = offense.S * np.cos((90 - offense.Dir) * np.pi % 180) + offense.X

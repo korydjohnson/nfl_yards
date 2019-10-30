@@ -49,10 +49,15 @@ loadData <- function(fileName = "train.csv", ...) {
     as_tibble()
 }
 categorical = c("Down", "OffenseFormation", "Turf", "GameWeather", "Rusher_Pos")
-toRemove = c(1:12, 14:16, 21:28, 33)
+toRemove = c(1:12, 14:16, 18, 20:29, 33)
 theData = loadData("features_py.csv") %>% 
   select(-toRemove) %>% 
   mutate_at(vars(categorical), as.factor)
+theData
+theData %>% 
+  summarise_all(~length(unique(.)))
+# colnames(theData)
+# map(theData, ~ length(unique(.)))
 # dim(model.matrix(~., data=theData))
 # dim(model.matrix(~.^2, data=theData))
 theResponse = loadData("response_py.csv") %>% 
@@ -125,7 +130,7 @@ plotProbEst = function(probs, y, rangeY) {
 
 Just to compare. Will use CV to get an estimate of performance before uploading to cloud.
 ```{r}
-predictCV = function(theResponse, theData, modelFnc, k=5) {
+predictCV = function(theResponse, theData, modelFnc, k=5, rangeY) {
   if (any(grepl("runAuction", capture.output(modelFnc)))) {
     modFnc = function(data) {
       # to send original data; modified it below for use in OOS prediction
@@ -154,8 +159,8 @@ predictCV = function(theResponse, theData, modelFnc, k=5) {
     select(predicted, sd) %>% 
     unnest(predicted) %>% 
     mutate(
-      probEst = map2(pred, sd, getProbs),
-      crps = map2_dbl(probEst, y, crps)
+      probEst = map2(pred, sd, getProbs.norm),
+      crps = map2_dbl(probEst, y, crps, rangeY=rangeY)
     ) %>% 
     summarise(crps = mean(crps))
 }
@@ -218,12 +223,11 @@ dfBeta %>%
 
 MLE unadjusted
 ```{r}
-theResponse = dfSub$Yards
 (pred = mean(theResponse))
 (sd = sd(theResponse))
 tibble(theResponse) %>% 
   mutate(
-    probEst = map2(pred, sd, getProbs, rangeY=seq(-99,99)),
+    probEst = map2(pred, sd, getProbs.norm, rangeY=seq(-99,99)),
     crps = map2_dbl(probEst, theResponse, crps, rangeY=seq(-99,99))
   ) %>% 
   summarise(crps = mean(crps))
@@ -231,8 +235,8 @@ tibble(theResponse) %>%
 
 MLE transformed
 ```{r}
-theResponse2 = log(pmax(theResponse + 16, 1))
-rangeY = log(pmax(seq(-99,99) + 16, 1))
+theResponse2 = log(pmax(theResponse + 15, 1))
+rangeY_norm = log(pmax(seq(-99,99) + 15, 1))
 (pred = mean(theResponse2))
 (sd = sd(theResponse2))
 tibble(theResponse2) %>% 
@@ -259,7 +263,6 @@ getProbsBeta = function(a,b) {
   x = seq(0, 198)/198
   pbeta(x, a, b)
 }
-theResponse = dfSub$Yards
 
 a = 112.75760456
 b = 103.6066858
@@ -336,10 +339,10 @@ tibble(pred, predTe) %>%
 
 ```{r}
 theResponse2 = log(pmax(theResponse + 15, 0))
-modelFnc = rai
-# modelFnc = runLM
-out = predictCV(theResponse2, theData2, modelFnc)
-# errorOOS(theResponse, theData2, list("rai"=rai, "lm"=runLM))
+modelFnc = partial(rai, alpha=.1)
+out = predictCV(theResponse2, theData, modelFnc, rangeY=rangeY_norm)
+out
+# rai(theData, theResponse2)
 ```
 
 # RAI caret
@@ -415,7 +418,7 @@ Performance
 ```{r}
 tibble(theResponse) %>% 
   mutate(
-    probEst = map2(pred, sd, getProbs),
+    probEst = map2(pred, sd, getProbs.norm),
     crps = map2_dbl(probEst, theResponse, crps)
   ) %>% 
   summarise(crps = mean(crps))
