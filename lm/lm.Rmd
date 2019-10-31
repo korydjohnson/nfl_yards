@@ -48,22 +48,23 @@ loadData <- function(fileName = "train.csv", ...) {
   data.table::fread(file, ...) %>% 
     as_tibble()
 }
-categorical = c("Down", "OffenseFormation", "Turf", "GameWeather", "Rusher_Pos")
-toRemove = c(1:12, 14:16, 18, 20:29, 33)
+# "Rusher_Pos" removed
+categorical = c("Down", "OffenseFormation", "Turf", "GameWeather")
+toRemove = c(1:12, 14:16, 18, 20:29, 33, 48)
 theData = loadData("features_py.csv") %>% 
   select(-toRemove) %>% 
   mutate_at(vars(categorical), as.factor)
-theData
-theData %>% 
-  summarise_all(~length(unique(.)))
-# colnames(theData)
-# map(theData, ~ length(unique(.)))
-# dim(model.matrix(~., data=theData))
-# dim(model.matrix(~.^2, data=theData))
-theResponse = loadData("response_py.csv") %>% 
+colnames(theData)
+# theData = select(theData, -c(7, 9:10, 12:21,24:30))  # for simpler model
+toExclude = which(theData$OffenseFormation == 5)  # only one observation
+theData = slice(theData, -toExclude)
+theResponse = loadData("response_py.csv") %>%
+  slice(-toExclude) %>% 
   pull(Yards)
 dim(theData); length(theResponse)
+# unique(theData$OffenseFormation)
 # theData
+rangeY_true = seq(-99,99)  # modified for specific distributions
 ```
 
 
@@ -71,10 +72,7 @@ dim(theData); length(theResponse)
 ### Helper Functions {-}
 
 ```{r}
-getProbs.norm = function(est, sd, rangeY=NULL, x=NULL, vB=NULL) {
-  if (is.null(rangeY)) {
-    rangeY = log(pmax(seq(-99,99) + 15, 0))
-  }
+getProbs.norm = function(est, sd, rangeY, x=NULL, vB=NULL) {
   if (!is.null(x) && !is.null(vB)) {
     x = as.matrix(x, ncol=1)
     sd = sd*(1 + sqrt(t(x)%*%vB%*%x))
@@ -82,17 +80,28 @@ getProbs.norm = function(est, sd, rangeY=NULL, x=NULL, vB=NULL) {
   pnorm(rangeY, est, sd)
 }
 
-getProbs.pois = function(est, rangeY=NULL) {
-  if (is.null(rangeY)) {
-    rangeY_pois_rel = (pmax(seq(-14,99) + 14, 0))^(1/4)
-    rangeY = c(rep(-1, 199-length(rangeY_pois_rel)), rangeY_pois_rel)
-  }
+getProbs.pois = function(est, rangeY) {
   ppois(rangeY, est)
 }
 
 getProbsInd = function(est, rangeY) {
   rangeY >= est
 }
+
+getProbs.trans = function(est, muTrans=1.13, sdTrans=.216) {
+  x = rangeY_true-est
+  z = (sign(x)*abs(x)^(1/6) - muTrans)/sdTrans
+  dens = dnorm(z)*abs(x)^(-5/6)/(6*sdTrans)
+  infInd = which(is.infinite(dens))
+  dens[is.infinite(dens)] = mean(c(dens[infInd+1], dens[infInd-1]))
+  pdfT = c(0,diff(z))*dens
+  pdf = pdf/sum(pdf)
+  cumsum(pdf)
+}
+dens
+ggplot(tibble(x, pdf)) +
+  geom_line(aes(x, pdf))
+# getProbs.trans(5)
 
 crps = function(probVec, y, rangeY) {
   Hy = (rangeY >= y)
@@ -102,10 +111,12 @@ crps = function(probVec, y, rangeY) {
 
 Post process prob estimates
 ```{r}
-rescaleProbs = function(probs, lims = c(-5,25)) {
-  rangeY = seq(-99,99)
-  lower = which(rangeY==lims[1])
-  upper = which(rangeY==lims[2])
+rescaleProbs = function(probs, lims = c(-5,25), distGoal=NULL) {
+  lower = which(rangeY_true==lims[1])
+  if (!is.null(distGoal)) {
+    lims[2] = min(distGoal, lims[2])
+  }
+  upper = which(rangeY_true==lims[2])
   relProbs = probs[lower:upper]
   if (max(relProbs)==0) {
     probs
@@ -119,10 +130,11 @@ Plot Individual Predictions
 ```{r}
 plotProbEst = function(probs, y, rangeY) {
   Hy = as.integer(rangeY >= y)
-  tibble(probs, Hy, yards = seq(-99,99)) %>% 
+  tibble(probs, Hy, yards = rangeY_true) %>% 
     gather(fnc, value, probs, Hy) %>% 
     ggplot() +
-    geom_line(aes(yards, value, color=fnc))
+    geom_line(aes(yards, value, color=fnc)) +
+    xlim(c(-20,30))
 }
 ```
 
@@ -131,30 +143,25 @@ plotProbEst = function(probs, y, rangeY) {
 Just to compare. Will use CV to get an estimate of performance before uploading to cloud.
 ```{r}
 predictCV = function(theResponse, theData, modelFnc, k=5, rangeY) {
-  if (any(grepl("runAuction", capture.output(modelFnc)))) {
-    modFnc = function(data) {
-      # to send original data; modified it below for use in OOS prediction
-      theDataO = apply(data[, -1, drop=F], 2, function(col) col^(1/startDeg))
-      modelFnc(theDataO, data[, 1])$model
-    }
-    theData = model.matrix(~. - 1, data=as.data.frame(theData))
-    startDeg = formals(modelFnc)$startDeg
-    theData = apply(theData, 2, function(col) col^startDeg)  # modify for OOS
-    cat("rai", startDeg, ";\n")
-  } else {
-    cat("other; \n")
-    modFnc = function(data) {
-      modelFnc(data[, -1, drop=F], data[, 1])
+  modFnc = function(data) {
+    modelFnc(data[, -1, drop=F], data[, 1])
+  }
+  sdErr = function(modelObject) {
+    if (is.null(summary(modelObject)$sigma)) {
+      summary(modelObject$model)$sigma
+    } else {
+      summary(modelObject)$sigma
     }
   }
   
   theResponse = as.matrix(theResponse)
   data = data.frame(y=theResponse, theData)
-  data %>% crossv_kfold(k = k) %>% 
+  # data %>% crossv_kfold(k = k) %>% 
+  data %>% crossv_kfold_stratified(k = k) %>% 
     mutate(
       model = map(train, ~modFnc(as.data.frame(.))),
       predicted = map2(model, test, ~ add_predictions(as.data.frame(.y), .x)),
-      sd = map_dbl(model, ~ summary(.)$sigma)
+      sd = map_dbl(model, ~ sdErr(.))
     ) %>%
     select(predicted, sd) %>% 
     unnest(predicted) %>% 
@@ -168,6 +175,36 @@ predictCV = function(theResponse, theData, modelFnc, k=5, rangeY) {
 errorOOS = function(theResponse, theData, fncs, k=5) {
   map(fncs, ~ predictCV(theResponse, theData, ., k))
 }
+```
+
+stratified cv
+```{r}
+crossv_kfold_stratified = function(data, k, groups=NULL) {
+  if (is.null(groups)) {
+    groups = colnames(data)[map_lgl(data, is.factor)]
+  }
+  # get folds; uses caret
+  folds = data %>% 
+    select(!!!eval(groups)) %>% 
+    unite(categories) %>%
+    pull(categories) %>% 
+    createFolds(k = k)
+  # convert to resample object for use with modelr
+  tibble(folds) %>% 
+    mutate(train = map(folds, ~resample(data, (1:nrow(data))[-.])),
+           test = map(folds, ~resample(data, (1:nrow(data))[.])),
+           id = 1:length(folds)) %>% 
+    select(-folds)
+}
+# groups = colnames(theData)[map_lgl(theData, is.factor)]
+# groups
+# for (col in groups) {
+#   for (fold in folds) {
+#       print(table(theData[fold, col]))
+#   }
+# }
+# folds <- createFolds(theData$Down, k = 5, list=F)
+# table(folds)
 ```
 
 ### Modeling Functions {-}
@@ -227,8 +264,8 @@ MLE unadjusted
 (sd = sd(theResponse))
 tibble(theResponse) %>% 
   mutate(
-    probEst = map2(pred, sd, getProbs.norm, rangeY=seq(-99,99)),
-    crps = map2_dbl(probEst, theResponse, crps, rangeY=seq(-99,99))
+    probEst = map2(pred, sd, getProbs.norm, rangeY=rangeY_true),
+    crps = map2_dbl(probEst, theResponse, crps, rangeY=rangeY_true)
   ) %>% 
   summarise(crps = mean(crps))
 ```
@@ -236,22 +273,22 @@ tibble(theResponse) %>%
 MLE transformed
 ```{r}
 theResponse2 = log(pmax(theResponse + 15, 1))
-rangeY_norm = log(pmax(seq(-99,99) + 15, 1))
+rangeY_norm = log(pmax(rangeY_true + 15, 1))
 (pred = mean(theResponse2))
 (sd = sd(theResponse2))
 tibble(theResponse2) %>% 
   mutate(
     probEst = map2(pred, sd, getProbs.norm),
-    crps = map2_dbl(probEst, theResponse2, crps, rangeY)
+    crps = map2_dbl(probEst, theResponse2, crps, rangeY_norm)
   ) %>% 
   summarise(crps = mean(crps))
 
-probs = getProbsInd(pred, rangeY)
-mean(map_dbl(theResponse2, crps, probVec=probs, rangeY=rangeY))
+probs = getProbsInd(pred, rangeY_norm)
+mean(map_dbl(theResponse2, crps, probVec=probs, rangeY=rangeY_norm))
 
-probs = getProbsInd(pred, rangeY)
+probs = getProbsInd(pred, rangeY_norm)
 for (i in 1:5) {
-  print(plotProbEst(probs, theResponse2[i], rangeY))
+  print(plotProbEst(probs, theResponse2[i], rangeY_norm))
 }
 ```
 
@@ -282,17 +319,26 @@ Hm, from this, beta seems to be on the same scale as normal, which makes sense. 
 Data Issue. All good now.
 
 # LM
+
+transformations
 ```{r}
-theResponse2 = log(pmax(theResponse + 16, 1))
+theResponse2 = pmax(theResponse + 14,0)^(1/2)
+theResponse2 = pmax(theResponse + 14,0)
+qqnorm(theResponse2)
+theResponse2 = log(pmax(theResponse + 5, 1))
 theData2 = model.matrix(~.,data=theData)
 vBeta = solve(crossprod(theData2))
 qqnorm(theResponse2)
 tibble(response = theResponse2) %>% 
   ggplot() + 
   geom_density(aes(response))
+```
+
+In-sample
+```{r}
 lmOut = lm(theResponse2~., data=theData)
 plot(lmOut)
-rangeY = log(pmax(seq(-99,99) + 16, 1))
+rangeY = log(pmax(rangeY_true + 16, 1))
 pred = lmOut$fitted.values
 
 distPreds = 
@@ -310,6 +356,14 @@ distPreds %>%
 ```
 pure quadratic model got .01478 online; 2018 data 0.01482
 in samp gets 0.01317
+
+CV estimates
+```{r}
+theResponse2 = log(pmax(theResponse + 16, 1))
+rangeY_norm = log(pmax(rangeY_true + 16, 1))
+modelFnc = runLM
+(out = predictCV(theResponse2, theData, modelFnc, rangeY=rangeY_norm))
+```
 
 Looking at some estimates
 ```{r}
@@ -339,89 +393,27 @@ tibble(pred, predTe) %>%
 
 ```{r}
 theResponse2 = log(pmax(theResponse + 15, 0))
-modelFnc = partial(rai, alpha=.1)
+modelFnc = rai
+modelFnc = partial(rai, alpha=.1, startDeg = 1)
 out = predictCV(theResponse2, theData, modelFnc, rangeY=rangeY_norm)
 out
-# rai(theData, theResponse2)
+distPreds = 
+  tibble(pred = rai_out$model$fitted.values, response = theResponse2,
+         data = split(theData, row(theData))) %>%
+  mutate(probsInd = map(pred, getProbsInd, rangeY=rangeY_norm),
+         probsNorm_hom = map(pred, getProbs.norm, rangeY=rangeY_norm,
+                             sd=summary(rai_out$model)$sigma),
+         probsNorm_hom2 = map(pred, getProbs.norm, rangeY=rangeY_norm, sd=.2)) %>% 
+  mutate_at(vars(starts_with("probs")), ~map2_dbl(., response, crps, rangeY=rangeY_norm))
+distPreds %>% 
+  summarise_at(vars(starts_with("probs")), mean)
 ```
 
-# RAI caret
-
+Making predictions
 ```{r}
-rai_caret = list(library = "rai",
-                 type = "Regression",
-                 prob = NULL)
-# subsampling, start parameter, alpha
-rai_caret$parameters = data.frame(parameter = c("alpha", "startDeg"),
-                                  class = rep("numeric", 2),
-                                  label = c("alpha", "startDeg"))
-rai_caret$grid = function(x, y, len=NULL, search = "grid") {
-  expand.grid(alpha = c(.01, seq(.05,.25,.05)),
-              startDeg = c(1, .5, 1/3))
-} 
-rai_caret$fit = function(x, y, wts=NULL, param, lev=NULL, 
-                         last, weights, classProbs, ...) {
-  rai::rai(theData = x, theResponse = y, alpha = param$alpha, ...)
-}
-rai_caret$predict = function(modelFit, newdata, preProc = NULL, 
-                             submodels = NULL) {
-  rai::predict.rai(modelFit, newdata) 
-}
-rai_caret$sort = function(x) x[order(rev(x$startDeg), x$alpha),]
-rai_caret$predictors = function(modelFit) {
-  modelFit$features
-}
-```
-
-Testing the Model
-```{r}
-fitControl <- trainControl(method = "repeatedcv",
-                           number = 5, ## 10-fold CV...
-                           repeats = 5)  ## repeated ten times
-# train(x=theData, y=theResponse, method=rai_caret, trControl = fitControl)
-```
-
-Adding the loop for sequential parameters (in this case, alpha). Will require a good amount of processing from `rai$summary`. This also requires a more general predict command.
-
-```{r}
-rai_caret$loop = function(grid) {
-  deg <- unique(grid$startDeg)
-  loop <- data.frame(startDeg = deg)
-  loop$alpha <- NA
-  submodels <- vector(mode = "list", length = length(deg))
-  for(i in seq(along = deg)) {
-    np <- grid[grid$startDeg == deg[i],"alpha"]
-    loop$alpha[loop$startDeg == deg[i]] <- np[which.max(np)]
-    submodels[[i]] <- data.frame(alpha = np[-which.max(np)])
-  }
-  list(loop = loop, submodels = submodels)
-}
-rai_caret$predict = function(modelFit, newdata, preProc = NULL, 
-                             submodels = NULL) {
-  out = predict(modelFit, newdata) 
-  if(!is.null(submodels)) {
-    out = list(out)
-    for(j in seq(along = submodels$alpha)) {
-      out[[j+1]] <- predict(modelFit, newdata, alpha = submodels$alpha[j])
-    }
-  }
-  out  
-}
-```
-
-Testing
-```{r}
-train(x=theData2, y=theResponse2, method=rai_caret, trControl = fitControl)
-```
-
-Performance
-```{r}
-tibble(theResponse) %>% 
-  mutate(
-    probEst = map2(pred, sd, getProbs.norm),
-    crps = map2_dbl(probEst, theResponse, crps)
-  ) %>% 
-  summarise(crps = mean(crps))
+rai_out = rai(theData, theResponse2, alpha=.1)
+mod = rai_out$model
+predict(mod, data.frame(model.matrix(~., data=theData)))
 ```
 
 # Poisson Regression
@@ -429,34 +421,85 @@ tibble(theResponse) %>%
 Fit seems quite good; when get error just from 
 
 ```{r}
-theResponse2 = (theResponse+14)^(1/4) 
-qqnorm(theResponse2)
-tibble(response = theResponse2) %>% 
+theResponse2 = pmax(theResponse+14, 0)
+rangeY_pois = pmax(rangeY_true+14, 0)
+
+qqnorm(pmax(theResponse+14, 0))
+qqnorm(pmax(theResponse+14, 0)^(1/2))
+tibble(response = theResponse2) %>%
   ggplot() + 
   geom_density(aes(response))
 
-rangeY_pois_rel = (pmax(seq(-14,99) + 14, 0))^(1/4)
-rangeY = c(rep(-1, 199-length(rangeY_pois_rel)), rangeY_pois_rel)
-glmOut = glm(theResponse2 ~., family = "poisson", data = theData)
-pred = glmOut$fitted.values
-mean(map2_dbl(pred, theResponse2, crps.pois))
-tibble(pred = pred, response = theResponse2) %>% 
-  mutate(probs = map(pred, getProbsInd, rangeY=rangeY),
-         err = map2_dbl(probs, response, crps, rangeY=rangeY)) %>% 
-  summarise(err = mean(err))
+glmOut = glm(theResponse2^(1/2) ~., family = "poisson", data = theData)
+pred = glmOut$fitted.values^2
 
-tibble(pred, theResponse2) %>% 
-  mutate(diff = theResponse2-pred) %>% 
-  ggplot() +
+distPreds = 
+  tibble(
+    pred = pred,
+    response = theResponse2,
+    distGoal = 100-theData$LineOfScrimmage
+  ) %>%
+  mutate(
+    probsInd = map(pred, getProbsInd, rangeY=rangeY_pois),
+    probsPois = map(pred, getProbs.pois, rangeY=rangeY_pois),
+    probsPois_s1 = map(probsPois, rescaleProbs),
+    probsPois_s2 = map2(probsPois, distGoal, ~rescaleProbs(.x, distGoal=.y)),
+    probsTrans = map(pred, getProbs.trans, rangeY=rangeY_true),
+    probsTrans_s1 = map(probsTrans, rescaleProbs),
+    probsTrans_s2 = map2(probsTrans, distGoal, ~rescaleProbs(.x, distGoal=.y))
+  )
+distPreds %>%
+  mutate_at(vars(starts_with("probs")), ~map2_dbl(., response, crps, rangeY=rangeY_pois)) %>% 
+  summarise_at(vars(starts_with("probs")), mean)
+```
+
+Plotting
+```{r}
+diffs = tibble(pred, theResponse2) %>% 
+  mutate(diff = theResponse2-pred)
+ggplot(diffs) +
   geom_density(aes(diff))
+ggplot(diffs) +
+  geom_density(aes(diff^(1/6)))
+ggplot(diffs) +
+  geom_density(aes(abs(diff)^(1/6)))
 
+diffs %>% 
+  summarize(mean = mean(abs(diff)^(1/6)),
+          sd = sd(abs(diff)^(1/6)))
 
-probs = getProbsInd(est, rangeY)
-rangeY_pois = (pmax(seq(-99,99) + 14, 0))^(1/4)
-plotProbEst(probs, y, rangeY_pois)
-probs = getProbsInd(pred, rangeY)
+qqnorm(diffs$diff^(1/6))
+summary(diffs$diff)
+
+probs = getProbsInd(pred[1], rangeY_pois)
+plotProbEst(probs, theResponse2[1], rangeY_pois)
+col = "probsInd"
+col = "probsPois_s1"
+col = "probsPois_s2"
 for (i in 1:5) {
-  probs = getProbsInd(pred[i], rangeY)
-  print(plotProbEst(probs, theResponse2[i], rangeY))
+  probs = distPreds[[col]][[i]]
+  print(plotProbEst(probs, theResponse2[i], rangeY_pois))
 }
+```
+
+
+# Survival Models
+
+```{r}
+library(survival)
+shift = 4; maximum = 21
+theResponse2 = pmax(pmin(theResponse + 4, maximum+4), 1)
+censored = theResponse + 4 > maximum+4
+surv_object <- Surv(theResponse, censored)
+mod = survreg(surv_object~., data=theData, dist="gaussian")
+
+coxPH <- coxph(surv_object ~ ., data = theData)
+exp(predict(coxPH, type="risk"))
+predict(coxPH, type="risk")
+predict(coxPH, type="expected")
+mod
+names(summary(mod))
+test = theData[1:5, ]
+predict(mod, test, se.fit=T)
+head(theResponse2)
 ```
