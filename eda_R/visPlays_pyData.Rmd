@@ -82,7 +82,7 @@ plotPlay = function(dfPlay, features=NULL, run=F) {
     labs(
       x = "Distance from offensive team's own end zone", 
       y = "Y", 
-      title = paste0("PlayId ", pull(dfPlay, PlayId)), 
+      title = paste0("PlayId ", as.character(pull(dfPlay, PlayId))), 
       subtitle = paste("Yards", dfPlay$Yards, "; ", "Down", dfPlay$Down)
     ) + 
     theme_bw(14) + 
