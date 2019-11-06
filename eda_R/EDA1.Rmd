@@ -42,9 +42,10 @@ library(magrittr)
 loadData <- function(fileName = "train.csv", ...) {
   file = paste("../input", fileName, sep="/")
   data.table::fread(file, ...) %>% 
-    as_tibble()
+    as_tibble() 
 }
 df = loadData("trainClean.csv")
+df = loadData("features_py.csv")
 df = loadData()
 dfTest = loadData("test.csv")
 ```
@@ -77,7 +78,7 @@ compareTest = function(dfTrain, dfTest, feature, year=NULL) {
     geom_density(data=dfTe, aes(!!sym(feature), color="test")) +
     labs(color = "Data Set")
 }
-compareTest(df, dfTest, "A", 2017)
+compareTest(df, dfTest, "S", 2017)
 ```
 
 ## Extracted Features

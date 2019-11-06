@@ -57,7 +57,7 @@ class DataCleaner:
                             "PlayerBirthDate", "PlayerCollegeName", "Stadium",
                             "Location", "WindSpeed", "WindDirection",
                             "HomeScoreBeforePlay", "VisitorScoreBeforePlay", "Humidity",
-                            "Temperature", "Team"]
+                            "Temperature", "Team", "TimeSnap", "TimeHandoff"]
 
         # StadiumType --> expect irrelevant
         outdoor = ['Outdoor', 'Outdoors', 'Cloudy', 'Heinz Field', 'Outdor',
@@ -197,6 +197,11 @@ class DataCleaner:
         # computing features which don't depend on play
         offense = np.where(df.PossessionTeam == df.HomeTeamAbbr, "home", "away")
         df["OnOffense"] = df.Team.values == offense
+        df["TimeToHandoff"] = (pd.to_datetime(df.TimeHandoff) - pd.to_datetime(df.TimeSnap)) \
+            / np.timedelta64(1, 's')
+
+        # truncate features
+        df.S = np.clip(df.S, .5, 10)
 
         # sort and drop irrelevant columns
         df.sort_values(by=["GameId", "PlayId"]).reset_index()

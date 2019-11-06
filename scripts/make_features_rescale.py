@@ -14,16 +14,26 @@ NOTE:
     You can provide list of features to make_features, these are the feature names
     and need to match the functions. The "f_" will be appended in the function to
     make creating the feature list nicer/simpler.
+
+END:
+    Removed all "unnecessary" variables.
+    Everythign is scaled except for self.categoricals.
+    Parameters are set when creating feature constructor and running on training data. There is
+    no longer a "test" argument, as it just checks whether or not "Yards" is in the column names.
+    It also calls an image generator. You set the "times" argument to be the point or vector of
+    times you'd like the image to cover. Default picks 3 points between 0 and 1,
+    weight in image decreases as time increases.
 """
 
 import pandas as pd
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter as gfilt
+import gc
 
 
 class ImageGenerator:
 
-    def __init__(self, filt=False, s=.5, width=3, nPoints=3, times=None):
+    def __init__(self, filt=False, s=.5, width=3, nPoints=1, times=None):
         self.filt = filt
         self.s = s
         self.width = width
@@ -31,32 +41,31 @@ class ImageGenerator:
         if times is None:
             self. times = np.linspace(0, 1, self.nPoints+2)
         else:
-            self.times = times
+            self.times = np.array(times)
 
     def get_images(self, df):
         images = []
+        gc.disable()
         for play in df.index.unique():
             dfP = df.filter(like=str(play), axis=0)
             image = self.play_to_heatmap(dfP)
             images.append(image)
+        gc.enable()
 
         return np.concatenate(images, axis=0)
 
-    def player_vec(self, player, LOS, scale=True):
+    def player_vec(self, player, LOS):
         dirRad = (90 - player.Dir) * np.pi % 180
 
         xVec = player.X + np.cos(dirRad)*(player.S*self.times + player.A*self.times**2/2)
-        xVec = np.clip(xVec.round(), -10, 110).astype(int)
+        xVec = np.clip(xVec.round(), -10, 110)
         xVec = np.clip(xVec - LOS + 21, 0, 41).astype(int)  # crop to 41 yard field
 
         yVec = player.Y + np.sin(dirRad)*(player.S*self.times + player.A*self.times**2/2)
         yVec = np.clip(yVec.round(), 0, 53).astype(int)
 
         wVec = abs(1 / (self.times + 1))
-        # speedVec = player.S + player.A*self.times
-        # wVec = (1 - speedVec/sum(speedVec))/2 if sum(speedVec) > 0 \
-        #     else np.repeat(1, len(self.times)) # only works for vector times
-        wVec = wVec/max(wVec) if scale else wVec
+        wVec = wVec/max(wVec)
 
         return xVec, yVec, wVec
 
@@ -68,15 +77,15 @@ class ImageGenerator:
         image = np.zeros((1, 3, 42, 54))
 
         # fill player location vectors
-        xpos, ypos, w = self.player_vec(rusher, self.times, LOS)
+        xpos, ypos, w = self.player_vec(rusher, LOS)
         image[0, 0, xpos, ypos] = w
 
         for player in offense.itertuples(index=False):
-            xpos, ypos, w = self.player_vec(player, self.times, LOS)
+            xpos, ypos, w = self.player_vec(player, LOS)
             image[0, 1, xpos, ypos] = w
 
         for player in defense.itertuples(index=False):
-            xpos, ypos, w = self.player_vec(player, self.times, LOS)
+            xpos, ypos, w = self.player_vec(player, LOS)
             image[0, 2, xpos, ypos] = w
 
         if self.filt:  # filter
@@ -93,21 +102,24 @@ class FeatureGenerator:
         self.images = images
         # creating features, method names
         self.features = features
-        self.response = ["Yards"]
-        self.time_features = ['TimeHandoff', 'TimeSnap']
+        self.response = "Yards"
         # repeated features; PlayId excluded as it'rusher the index; Yards for response
         self.repeated_features = ['Quarter', 'PossessionTeam', 'Down',
                                   'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather',
                                   'LineOfScrimmage']
-        self.dropColumns = ["PlayDirection"]
+        self.dropColumns = ["GameId", "X", "Y", "S", "A", "Dis", "Orientation",
+                            "Dir", "NflId", "FieldPosition", "PlayerHeight", "PlayerWeight",
+                            "Position", "HomeTeamAbbr", "VisitorTeamAbbr", "Week", "StadiumType",
+                            "OnOffense", "NflIdRusher", "PossessionTeam", "Quarter",
+                            "PlayDirection"]
+        self.categoricals = ["Down", "OffenseFormation", "OffensePersonnel", "DefensePersonnel",
+                             "Rusher_Pos", "Turf", "GameWeather", "Rusher_Gap_ToEdge"]
+        self.feature_categorical = ["Rusher_Pos"]  # constructed feature; cleaned at end
         self.images = images
         if images:
             self.imageGen = ImageGenerator(filt, s, width, nPoints, times)
-
-    def timeTillHandoff(self, df):
-        pass
 
     @staticmethod
     def f_Team(dfP):
@@ -172,10 +184,9 @@ class FeatureGenerator:
             GapCenter = (160 / 3 + rusher.Y) / 2 if side == "up" else rusher.Y / 2
             # GapRadius = (np.abs(GapCenter - rusher.Y.values[0])) / rusher.S.values[0]
         DistDirLOS = np.sqrt((rusher.X - rusher.LineOfScrimmage) ** 2 + (rusher.Y - GapCenter) ** 2)
-        GapRadius = (gapMult * DistDirLOS) / rusher.S if rusher.S > 0 else gapMult * DistDirLOS
-        # either *time to center* or distDirLOS (distLOS in direction of run)
+        GapRadius = (gapMult * DistDirLOS) / rusher.S
 
-        # compute statistics; who *will be* in gap/ball at LOS
+        # compute statistics; who *will be* in gap/ball at LOS. Either Distance or Time based.
         offense["X_end"] = offense.S * np.cos((90 - offense.Dir) * np.pi % 180) + offense.X
         offense["Y_end"] = offense.S * np.sin((90 - offense.Dir) * np.pi % 180) + offense.Y
         defense["X_end"] = defense.S * np.cos((90 - defense.Dir) * np.pi % 180) + defense.X
@@ -204,6 +215,19 @@ class FeatureGenerator:
              "Center": GapCenter, "Radius": GapRadius, "DistDirLOS": DistDirLOS}
         return d
 
+    def set_standards(self, covariates):
+        self.numeric = [col for col in covariates.columns if col not in self.categoricals]
+        self.means = covariates[self.numeric].mean()
+        self.sds = np.sqrt(covariates[self.numeric].var())
+        self.feature_categories = {col: [v for v in covariates[col].unique() if pd.notna(v)]
+                                   for col in self.feature_categorical}
+
+    def standardize(self, covariates):
+        covariates[self.numeric] = (covariates[self.numeric] - self.means) / self.sds
+        for col in self.feature_categorical:
+            covariates[col] = pd.Categorical(covariates[col],
+                                             categories=self.feature_categories[col])
+
     def new_features(self, dfP, methods):
         out = {}
         for method in methods:
@@ -211,7 +235,7 @@ class FeatureGenerator:
         out = pd.io.json.json_normalize(out, sep='_')
         return out.iloc[0]
 
-    def make_features(self, df, test=False):
+    def make_features(self, df):
         if self.features is None:
             methods = [method for method in dir(self)
                        if callable(getattr(self, method)) if method.startswith('f_')]
@@ -225,40 +249,47 @@ class FeatureGenerator:
             extractedImages = self.imageGen.get_images(df)
 
         # return based on training or test data
-        if test:
-            covariates = out.drop(columns=self.dropColumns)
-            if self.images:
-                return extractedImages, covariates, out.index.values
-            else:
-                return covariates, out.index.values
-        else:
-            covariates = out.drop(columns=self.response).drop(columns=self.dropColumns)
+        covariates = out.drop(columns=self.dropColumns)
+        if self.response in out.columns:  # training set
+            covariates = covariates.drop(columns=self.response)
+            self.set_standards(covariates)
+            self.standardize(covariates)
             if self.images:
                 return extractedImages, covariates, out[self.response], out.index.values
             else:
                 return covariates, out[self.response], out.index.values
+        else:
+            self.standardize(covariates)
+            if self.images:
+                return extractedImages, covariates, out.index.values
+            else:
+                return covariates, out.index.values
 
 
 if __name__ == "__main__":
     data = pd.read_csv('./input/trainClean_py.csv', low_memory=False).set_index("PlayId")
     ctor = FeatureGenerator()  # feature constructor
-    dfSub = data.filter(like="20170907000118", axis=0)
+    dfSub = pd.concat([data.filter(like="20170907000118", axis=0),
+                       data.filter(like="20181230154157", axis=0)])
     ctor.make_features(dfSub)
     dfSub = dfSub.drop("Yards", axis=1)
-    ctor.make_features(dfSub, test=True)
+    ctor.make_features(dfSub)
 
-    images, features, playid = ctor.make_features(dfSub, test=True)
+    ims, features, playid = ctor.make_features(dfSub)
+    features[ctor.numeric].mean()
+    features[ctor.numeric].var()
+    # image_ctor = ImageGenerator(times=[0])
+    # images = image_ctor.play_to_heatmap(dfSub)
     import matplotlib.pyplot as plt
-    image = images[0, :, :, :]
+    im = ims[0, :, :, :]
     a = []
     for i in range(3):
-        a.append(image[i, :, :])
+        a.append(im[i, :, :])
     a = np.stack(a, axis=2)
     plt.imshow(a)
     plt.show()
 
-
-    x, y, PlayId = ctor.make_features(data)
+    ims, x, y, PlayId = ctor.make_features(data)
     # x.head()
     # for c in x.columns:
     #     print(x[c].sample(10))
