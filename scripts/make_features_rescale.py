@@ -289,16 +289,13 @@ if __name__ == "__main__":
     plt.imshow(a)
     plt.show()
 
-    ims, x, y, PlayId = ctor.make_features(data)
-    # x.head()
-    # for c in x.columns:
-    #     print(x[c].sample(10))
+    ctor = FeatureGenerator(images=False)  # feature constructor
+    x, y, PlayId = ctor.make_features(data)
     x.to_csv("./input/features_py.csv")
     # y.to_csv("../input/response_py.csv")
 
     # make features for test data
     data = pd.read_csv('./input/testClean_py.csv', low_memory=False).set_index("PlayId")
-    ctor = FeatureGenerator()  # feature constructor
-    x, PlayId = ctor.make_features(data, test=True)
+    x, PlayId = ctor.make_features(data)
     x.head()
     x.to_csv("./input/featuresTest_py.csv")

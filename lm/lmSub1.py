@@ -1,15 +1,19 @@
-# This Python 3 environment comes with many helpful analytics libraries installed
-# It is defined by the kaggle/python docker image: https://github.com/kaggle/docker-python
-# For example, here's several helpful packages to load in
+"""
+Polynomial Model
+"""
 
 import numpy as np  # linear algebra
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
+from sklearn.isotonic import IsotonicRegression
 from scipy.stats import norm
+from scipy.ndimage.filters import gaussian_filter as gfilt
+import gc
 
-# from input.kaggle.competitions import nflrush
-from kaggle.competitions import nflrush
+
+from input.kaggle.competitions import nflrush
+# from kaggle.competitions import nflrush
 env = nflrush.make_env()
 
 ################################################################################
@@ -57,7 +61,7 @@ class DataCleaner:
                             "PlayerBirthDate", "PlayerCollegeName", "Stadium",
                             "Location", "WindSpeed", "WindDirection",
                             "HomeScoreBeforePlay", "VisitorScoreBeforePlay", "Humidity",
-                            "Temperature", "Team"]
+                            "Temperature", "Team", "TimeSnap", "TimeHandoff"]
 
         # StadiumType --> expect irrelevant
         outdoor = ['Outdoor', 'Outdoors', 'Cloudy', 'Heinz Field', 'Outdor',
@@ -197,6 +201,11 @@ class DataCleaner:
         # computing features which don't depend on play
         offense = np.where(df.PossessionTeam == df.HomeTeamAbbr, "home", "away")
         df["OnOffense"] = df.Team.values == offense
+        df["TimeToHandoff"] = (pd.to_datetime(df.TimeHandoff) - pd.to_datetime(df.TimeSnap)) \
+            / np.timedelta64(1, 's')
+
+        # truncate features
+        df.S = np.clip(df.S, .5, 10)
 
         # sort and drop irrelevant columns
         df.sort_values(by=["GameId", "PlayId"]).reset_index()
@@ -204,37 +213,100 @@ class DataCleaner:
         df.drop(self.dropColumns, inplace=True, axis=1)
         return df
 
+
 ################################################################################
 # Feature Generator
 ################################################################################
 
+class ImageGenerator:
+
+    def __init__(self, filt=False, s=.5, width=3, nPoints=1, times=None):
+        self.filt = filt
+        self.s = s
+        self.width = width
+        self.nPoints = nPoints
+        if times is None:
+            self. times = np.linspace(0, 1, self.nPoints+2)
+        else:
+            self.times = np.array(times)
+
+    def get_images(self, df):
+        images = []
+        gc.disable()
+        for play in df.index.unique():
+            dfP = df.filter(like=str(play), axis=0)
+            image = self.play_to_heatmap(dfP)
+            images.append(image)
+        gc.enable()
+
+        return np.concatenate(images, axis=0)
+
+    def player_vec(self, player, LOS):
+        dirRad = (90 - player.Dir) * np.pi % 180
+
+        xVec = player.X + np.cos(dirRad)*(player.S*self.times + player.A*self.times**2/2)
+        xVec = np.clip(xVec.round(), -10, 110)
+        xVec = np.clip(xVec - LOS + 21, 0, 41).astype(int)  # crop to 41 yard field
+
+        yVec = player.Y + np.sin(dirRad)*(player.S*self.times + player.A*self.times**2/2)
+        yVec = np.clip(yVec.round(), 0, 53).astype(int)
+
+        wVec = abs(1 / (self.times + 1))
+        wVec = wVec/max(wVec)
+
+        return xVec, yVec, wVec
+
+    def play_to_heatmap(self, dfP):
+        rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']].squeeze()
+        LOS = rusher.LineOfScrimmage
+        offense = dfP[dfP.OnOffense]
+        defense = dfP[~dfP.OnOffense]
+        image = np.zeros((1, 3, 42, 54))
+
+        # fill player location vectors
+        xpos, ypos, w = self.player_vec(rusher, LOS)
+        image[0, 0, xpos, ypos] = w
+
+        for player in offense.itertuples(index=False):
+            xpos, ypos, w = self.player_vec(player, LOS)
+            image[0, 1, xpos, ypos] = w
+
+        for player in defense.itertuples(index=False):
+            xpos, ypos, w = self.player_vec(player, LOS)
+            image[0, 2, xpos, ypos] = w
+
+        if self.filt:  # filter
+            t = (((self.width - 1) / 2) - 0.5) / self.s
+            for dim in range(3):
+                image[0, dim, :, :] = gfilt(image[0, dim, :, :], sigma=self.s, truncate=t)
+
+        return image
+
 
 class FeatureGenerator:
-    def __init__(self):
-        self.response = ["Yards"]
-        self.time_features = ['TimeHandoff', 'TimeSnap']
-        # repeated features; PlayId excluded as it's the index; Yards for response
+    def __init__(self, images=True, features=None, filt=False, s=.5, width=3,
+                 nPoints=3, times=None):
+        self.images = images
+        # creating features, method names
+        self.features = features
+        self.response = "Yards"
+        # repeated features; PlayId excluded as it'rusher the index; Yards for response
         self.repeated_features = ['Quarter', 'PossessionTeam', 'Down',
                                   'Distance', 'OffenseFormation', 'OffensePersonnel',
                                   'DefendersInTheBox', 'DefensePersonnel', 'HomeTeamAbbr',
                                   'VisitorTeamAbbr', 'Week', 'StadiumType', 'Turf', 'GameWeather',
                                   'LineOfScrimmage']
-        self.dropColumns = ["PlayDirection"]
-
-    def yardsTillNow(self, df):
-        # will we be able to do this on the test data?
-        # if get runs in order, then could sum as we see them
-        pass
-
-    def snow(self, df):
-        pass
-
-    def specialYardIndicators(self, df):
-        # First and ten/15/20
-        pass
-
-    def timeTillHandoff(self, df):
-        pass
+        self.dropColumns = ["GameId", "X", "Y", "S", "A", "Dis", "Orientation",
+                            "Dir", "NflId", "FieldPosition", "PlayerHeight", "PlayerWeight",
+                            "Position", "HomeTeamAbbr", "VisitorTeamAbbr", "Week", "StadiumType",
+                            "OnOffense", "NflIdRusher", "PossessionTeam", "Quarter",
+                            "PlayDirection"]
+        self.categoricals = ["Down", "OffenseFormation", "OffensePersonnel", "DefensePersonnel",
+                             "Rusher_Pos", "Turf", "GameWeather", "Rusher_Gap_ToEdge"]
+        self.feature_categorical = ["Rusher_Pos"]  # constructed feature; cleaned at end
+        self.images = images
+        if images:
+            self.imageGen = ImageGenerator(filt, s, width, nPoints, times)
 
     @staticmethod
     def f_Team(dfP):
@@ -253,74 +325,95 @@ class FeatureGenerator:
 
     def f_Rusher(self, dfP):
         # set up
-        s = dfP[dfP['NflId'] == dfP['NflIdRusher']]
-        rush_dir_rad = (90 - s['Dir']) * np.pi / 180.0
-        offense = dfP[dfP.OnOffense]
-        defense = dfP[~dfP.OnOffense]
-        dist_off = np.sqrt((offense.X - s['X'].values[0])**2 + (offense.Y - s['Y'].values[0])**2)
-        dist_def = np.sqrt((defense.X - s['X'].values[0])**2 + (defense.Y - s['Y'].values[0])**2)
-        closest_opponent = defense.loc[dist_def.idxmin(), :]
+        rusher = dfP[dfP['NflId'] == dfP['NflIdRusher']].squeeze()
+        rush_dir_rad = (90 - rusher.Dir) * np.pi / 180.0
+        offense = dfP[dfP.OnOffense].copy()
+        defense = dfP[~dfP.OnOffense].copy()
+        dist_off = np.sqrt((offense.X - rusher.X)**2 + (offense.Y - rusher.Y)**2).values
+        dist_def = np.sqrt((defense.X - rusher.X)**2 + (defense.Y - rusher.Y)**2).values
 
         # descriptive statistics
-        ADef = (closest_opponent['A']-s['A']).values[0]
-        SDef = (closest_opponent['S']-s['S']).values[0]
         DistDef = dist_def.min()
-        Acc = s['A'].values[0]
-        SpeedX = np.abs(s['S'] * np.cos(rush_dir_rad)).values[0]
-        SpeedY = np.abs(s['S'] * np.sin(rush_dir_rad)).values[0]
-        Pos = s.Position.values[0]
+        closest_opponent = defense.iloc[np.argmin(dist_def)]
+        ADef = closest_opponent.A-rusher.A
+        SDef = closest_opponent.S-rusher.S
+        Acc = rusher.A
+        SpeedX = np.abs(rusher.S * np.cos(rush_dir_rad))
+        SpeedY = np.abs(rusher.S * np.sin(rush_dir_rad))
+        Pos = rusher.Position
 
         # interpretive/computed statistics
         DistOffMean = dist_off.mean() * 11 / 10  # rescale for rusher 0
         DistDefMean = dist_def.mean()
-        DistLOS = (s['LineOfScrimmage'] - s['X']).values[0]
+        DistLOS = rusher.LineOfScrimmage - rusher.X
 
         # output
         d = {"DistLOS": DistLOS, "DistDef": DistDef, "Acc": Acc,
              "SpeedX": SpeedX, "SpeedY": SpeedY, "Pos": Pos,
              "DistOffMean": DistOffMean, "DistDefMean": DistDefMean,
              "ADef": ADef, "SDef": SDef,
-             "Gap": self.Gap(s, DistLOS, offense, defense)}
+             "Gap": self.Gap(rusher, DistLOS, offense, defense)}
         return d
 
-    @staticmethod
-    def Gap(s, DistLOS, offense, defense, gapMult=1):
+    @staticmethod  # gapMult=1 sets gap radius as 1 second; or gapRadius*rusherSpeed = distLOS
+    def Gap(rusher, DistLOS, offense, defense, gapMult=1):
         # set up: compute gap location and size. Running toward edge if gap isn't entirely in field.
-        Dir = s.Dir.values[0]
+        Dir = rusher.Dir
         ToEdge = 1
         if 0 <= Dir < 180:
             angle = min(Dir, 180 - Dir)
             deltaY = DistLOS / np.tan(angle * np.pi / 180.0)
-            GapCenter = s.Y.values[0] + (-1)**(Dir > 90) * deltaY
-            GapRadius = gapMult * DistLOS
-            if GapCenter - GapRadius > 0 and GapCenter + GapRadius < 160 / 3:
+            GapCenter = rusher.Y + (-1)**(Dir > 90) * deltaY
+            if 0 < GapCenter < 160 / 3:  # prev checked if entire ball in field
                 ToEdge = 0
         if 180 <= Dir <= 360 or ToEdge:
             side = "up" if 270 <= Dir or Dir < 90 else "down"
-            GapCenter = (160 / 3 + s.Y.values[0]) / 2 if side == "up" else s.Y.values[0] / 2
-            GapRadius = np.abs(GapCenter - s.Y.values[0])
-            ToEdge = 1
+            GapCenter = (160 / 3 + rusher.Y) / 2 if side == "up" else rusher.Y / 2
+            # GapRadius = (np.abs(GapCenter - rusher.Y.values[0])) / rusher.S.values[0]
+        DistDirLOS = np.sqrt((rusher.X - rusher.LineOfScrimmage) ** 2 + (rusher.Y - GapCenter) ** 2)
+        GapRadius = (gapMult * DistDirLOS) / rusher.S
 
-        # compute statistics
-        off_DistToGap = np.sqrt((offense.X - offense.LineOfScrimmage)**2 +
-                                (offense.Y - GapCenter)**2)
-        def_DistToGap = np.sqrt((defense.X - defense.LineOfScrimmage) ** 2 +
-                                (defense.Y - GapCenter) ** 2)
-        nOff = (off_DistToGap < GapRadius).sum()
-        nDef = (def_DistToGap < GapRadius).sum()
-        NPlayers = nOff + nDef
-        AveSpace = NPlayers / GapRadius
-        TeamRatio = (nOff + 1)/(nDef + 1)  # prevents /0
-        defYLoc = defense[def_DistToGap < GapRadius].Y.to_list()
-        defYLoc.sort()
-        defYLoc.insert(0, GapCenter - GapRadius)
-        defYLoc.append(GapCenter + GapRadius)
-        OpenSize = np.diff(defYLoc).max()
+        # compute statistics; who *will be* in gap/ball at LOS. Either Distance or Time based.
+        offense["X_end"] = offense.S * np.cos((90 - offense.Dir) * np.pi % 180) + offense.X
+        offense["Y_end"] = offense.S * np.sin((90 - offense.Dir) * np.pi % 180) + offense.Y
+        defense["X_end"] = defense.S * np.cos((90 - defense.Dir) * np.pi % 180) + defense.X
+        defense["Y_end"] = defense.S * np.sin((90 - defense.Dir) * np.pi % 180) + defense.Y
+        off_DistToGap = np.sqrt((offense.X_end - offense.LineOfScrimmage)**2 +
+                                (offense.Y_end - GapCenter)**2)
+        def_DistToGap = np.sqrt((defense.X_end - defense.LineOfScrimmage) ** 2 +
+                                (defense.Y_end - GapCenter) ** 2)
+        nOffT = (off_DistToGap / offense.S < GapRadius).sum()
+        nDefT = (def_DistToGap / defense.S < GapRadius).sum()
+        NPlayersT = nOffT + nDefT
+        AveSpaceT = NPlayersT / GapRadius
+        TeamRatioT = (nOffT + 1)/(nDefT + 1)  # prevents /0
+        OpenSizeT = min(def_DistToGap / defense.S)  # minimum time to center of gap
+        nOffD = (off_DistToGap < gapMult * DistDirLOS).sum()
+        nDefD = (def_DistToGap < gapMult * DistDirLOS).sum()
+        NPlayersD = nOffD + nDefD
+        AveSpaceD = NPlayersD / (gapMult * DistDirLOS)
+        TeamRatioD = (nOffD + 1) / (nDefD + 1)  # prevents /0
+        OpenSizeD = min(def_DistToGap)  # minimum time to center of gap
 
         # output
-        d = {"NPlayers": NPlayers, "AveSpace": AveSpace, "TeamRatio": TeamRatio,
-             "OpenSize": OpenSize, "ToEdge": ToEdge, "Center": GapCenter, "Radius": GapRadius}
+        d = {"NPlayersT": NPlayersT, "AveSpaceT": AveSpaceT, "TeamRatioT": TeamRatioT,
+             "OpenSizeT": OpenSizeT, "NPlayersD": NPlayersD, "AveSpaceD": AveSpaceD,
+             "TeamRatioD": TeamRatioD, "OpenSizeD": OpenSizeD, "ToEdge": ToEdge,
+             "Center": GapCenter, "Radius": GapRadius, "DistDirLOS": DistDirLOS}
         return d
+
+    def set_standards(self, covariates):
+        self.numeric = [col for col in covariates.columns if col not in self.categoricals]
+        self.means = covariates[self.numeric].mean()
+        self.sds = np.sqrt(covariates[self.numeric].var())
+        self.feature_categories = {col: [v for v in covariates[col].unique() if pd.notna(v)]
+                                   for col in self.feature_categorical}
+
+    def standardize(self, covariates):
+        covariates[self.numeric] = (covariates[self.numeric] - self.means) / self.sds
+        for col in self.feature_categorical:
+            covariates[col] = pd.Categorical(covariates[col],
+                                             categories=self.feature_categories[col])
 
     def new_features(self, dfP, methods):
         out = {}
@@ -329,25 +422,35 @@ class FeatureGenerator:
         out = pd.io.json.json_normalize(out, sep='_')
         return out.iloc[0]
 
-    def make_features(self, df, features=None, test=False):
-        # creating features, method names
-        if features is None:
+    def make_features(self, df):
+        if self.features is None:
             methods = [method for method in dir(self)
                        if callable(getattr(self, method)) if method.startswith('f_')]
         else:
-            methods = ["f_" + feature for feature in features]
+            methods = ["f_" + feature for feature in self.features]
 
         out = df.drop_duplicates(self.repeated_features)
         extractedFeatures = df.groupby('PlayId').apply(self.new_features, methods)
         out = out.join(extractedFeatures)
+        if self.images:
+            extractedImages = self.imageGen.get_images(df)
 
         # return based on training or test data
-        if test:
-            covariates = out.drop(columns=self.dropColumns)
-            return covariates, out.index.values
+        covariates = out.drop(columns=self.dropColumns)
+        if self.response in out.columns:  # training set
+            covariates = covariates.drop(columns=self.response)
+            self.set_standards(covariates)
+            self.standardize(covariates)
+            if self.images:
+                return extractedImages, covariates, out[self.response], out.index.values
+            else:
+                return covariates, out[self.response], out.index.values
         else:
-            covariates = out.drop(columns=self.response).drop(columns=self.dropColumns)
-            return covariates, out[self.response], out.index.values
+            self.standardize(covariates)
+            if self.images:
+                return extractedImages, covariates, out.index.values
+            else:
+                return covariates, out.index.values
 
 
 ################################################################################
@@ -378,8 +481,8 @@ cleaner = DataCleaner(df_tr)
 df_tr = cleaner.clean_data(df_tr)
 
 print('- get features')
-featgenerator = FeatureGenerator()
-xtr, ytr, playid_tr = featgenerator.make_features(df_tr, test=False)
+featgenerator = FeatureGenerator(images=False)
+xtr, ytr, playid_tr = featgenerator.make_features(df_tr)
 # xtr = pd.read_csv('./input/features_py.csv', low_memory=False).set_index("PlayId")
 # ytr = pd.read_csv('./input/response_py.csv', low_memory=False).set_index("PlayId")
 
@@ -390,20 +493,12 @@ ytr = np.log(ytr + minY + 2)  # min val is log(2), use log(1) for truncated rang
 
 
 # transform x
-toRemove = np.concatenate((np.arange(11), np.arange(12, 15), np.arange(19, 27),
-                           np.array([31])), axis=0)
-xtr = xtr.drop(xtr.columns[toRemove], axis=1)
-
-categoricalCl = ["Down", "OffenseFormation", "Turf", "GameWeather"]
-categoricalFea = ["Rusher_Pos"]
-categoriesFea = {col: [val for val in xtr[col].unique() if pd.notna(val)]
-                 for col in categoricalFea}
-
-for col in categoricalCl:
-    xtr[col] = pd.Categorical(xtr[col], categories=cleaner.categories[col])
-for col in categoricalFea:
-    xtr[col] = pd.Categorical(xtr[col], categories=categoriesFea[col])
-xtr = pd.get_dummies(xtr, prefix_sep="_", drop_first=True)
+categoricals = ["Down", "OffenseFormation", "OffensePersonnel", "DefensePersonnel",
+                "Rusher_Pos", "Turf", "GameWeather", "Rusher_Gap_ToEdge"]
+xtr = xtr.drop(xtr.columns[categoricals], axis=1)
+# for col in categoricals:
+#     xtr[col] = pd.Categorical(xtr[col], categories=cleaner.categories[col])
+# xtr = pd.get_dummies(xtr, prefix_sep="_", drop_first=True)
 
 print('- estimate model')
 polyFeat = PolynomialFeatures(degree=2)
@@ -411,6 +506,22 @@ xtr2 = polyFeat.fit_transform(xtr)
 lm = LinearRegression()
 lm.fit(xtr2, ytr)
 rangeY = np.log(np.clip(np.arange(-99, 100) + minY + 2, 1, None))
+
+print('- recalibrate predictions')
+
+
+def f(p):
+    return np.mean(p1 < p)
+
+recalibrateCdf(probs,)
+
+p1 = norm.cdf((yval2 - output[:, 0]) / np.sqrt(output[:, 1]))
+
+
+
+p2 = np.array([f(pi) for pi in p1])
+ir = IsotonicRegression()
+ir.fit(p1, p2)
 
 # for (df_te, sample_prediction_df) in env.iter_test():
 #     pass
@@ -424,17 +535,16 @@ for i, (df_te, sample_prediction_df) in enumerate(env.iter_test()):
     xte, playid_te = featgenerator.make_features(df_te, test=True)
 
     # process for lm
-    xte = xte.drop(xte.columns[toRemove], axis=1)
-    for col in categoricalCl:
-        xte[col] = pd.Categorical(xte[col], categories=cleaner.categories[col])
-    for col in categoricalFea:
-        xte[col] = pd.Categorical(xte[col], categories=categoriesFea[col])
-    xte = pd.get_dummies(xte, prefix_sep="_", drop_first=True)
+    xte = xte.drop(xte.columns[categoricals], axis=1)
+    # for col in categoricals:
+    #     xte[col] = pd.Categorical(xte[col], categories=cleaner.categories[col])
+    # xte = pd.get_dummies(xte, prefix_sep="_", drop_first=True)
 
     # get predictions and cdf
     xte2 = polyFeat.fit_transform(xte)
     pred = lm.predict(xte2).__float__()
-    probs = rescale_probabilities(norm.cdf(rangeY, pred, .2))
+    probs = norm.cdf(rangeY, pred, .2)
+    probsRe =
     df_pred = pd.DataFrame(data=probs.reshape(1, -1), columns=sample_prediction_df.columns)
     env.predict(df_pred)
 
