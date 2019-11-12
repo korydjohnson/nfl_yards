@@ -1,13 +1,14 @@
 """
-Polynomial Model
+Cox Proportional Hazard Model
+main benefit would really just be truncating long runs; perhaps this is distorting the LM
+so much. In reality, cox -> poisson -> lm for large parameter values, so unsure why performance
+differences are so great
 """
 
 import numpy as np  # linear algebra
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
+import statsmodels.api as sm
 from sklearn.isotonic import IsotonicRegression
-from scipy.stats import norm
 from scipy.ndimage.filters import gaussian_filter as gfilt
 import gc
 
@@ -285,8 +286,9 @@ class ImageGenerator:
 
 class FeatureGenerator:
     def __init__(self, images=True, features=None, filt=False, s=.5, width=3,
-                 nPoints=3, times=None):
+                 nPoints=3, times=None, standardizeNumeric=True):
         self.images = images
+        self.standardizeNumeric = standardizeNumeric
         # creating features, method names
         self.features = features
         self.response = "Yards"
@@ -410,7 +412,8 @@ class FeatureGenerator:
                                    for col in self.feature_categorical}
 
     def standardize(self, covariates):
-        covariates[self.numeric] = (covariates[self.numeric] - self.means) / self.sds
+        if self.standardizeNumeric:
+            covariates[self.numeric] = (covariates[self.numeric] - self.means) / self.sds
         for col in self.feature_categorical:
             covariates[col] = pd.Categorical(covariates[col],
                                              categories=self.feature_categories[col])
@@ -457,10 +460,9 @@ class FeatureGenerator:
 # Rescale Probabilities
 ################################################################################
 
-def rescale_probabilities(probsVec, lims=[-5, 25]):
-    rangeY_true = np.arange(-99, 100)
-    lower = np.where(rangeY_true == lims[0])[0].__int__()
-    upper = np.where(rangeY_true == lims[1])[0].__int__()
+def rescale_probabilities(probsVec, lim_l=-5, lim_u = 25):
+    lower = np.where(rangeY_true == lim_l)[0].__int__()
+    upper = np.where(rangeY_true == lim_u)[0].__int__()
     probsSel = probsVec[lower:upper]
     probsSel = probsSel/max(probsSel)
     probsN = np.concatenate((np.repeat(0, lower, axis=0), probsSel,
@@ -481,15 +483,19 @@ cleaner = DataCleaner(df_tr)
 df_tr = cleaner.clean_data(df_tr)
 
 print('- get features')
-featgenerator = FeatureGenerator(images=False)
+featgenerator = FeatureGenerator(images=False, standardizeNumeric=False)
 xtr, ytr, playid_tr = featgenerator.make_features(df_tr)
-# xtr = pd.read_csv('./input/features_py.csv', low_memory=False).set_index("PlayId")
-# ytr = pd.read_csv('./input/response_py.csv', low_memory=False).set_index("PlayId")
+# ytr = pd.read_csv('./input/response_py.csv', low_memory=False).set_index("PlayId").squeeze()
+xtr = pd.read_csv('./input/features_py.csv', low_memory=False).set_index("PlayId")
 
-print('- lm prep')
+print('- model prep')
 # transform y
-minY = -1 * min(ytr)
-ytr = np.log(ytr + minY + 2)  # min val is log(2), use log(1) for truncated range
+rangeY_true = np.arange(-99, 100)
+minY = -1 * ytr.min()
+threshold = np.quantile(ytr, .95) + minY  # on scale of transformed values
+ctr = np.array(ytr < threshold).astype(np.int)
+ytr2 = np.clip(ytr + minY, 0, threshold)
+rangeY = np.arange(-99, 100) + minY
 
 
 # transform x
@@ -499,28 +505,34 @@ toKeep = ["Distance", "OffenseFormation", "LineOfScrimmage", "Rusher_Gap_AveSpac
           "Rusher_Gap_TeamRatioT", "Rusher_SDef", "Rusher_SpeedX", "Rusher_SpeedY",
           "Team_DefDistLOS", "Team_DefXStd", "Team_OffDistLOS"]
 xtr = xtr[toKeep]
-# for col in categoricals:
-#     xtr[col] = pd.Categorical(xtr[col], categories=cleaner.categories[col])
+categoricals = ["Down", "OffenseFormation", "OffensePersonnel", "DefensePersonnel",
+                "Rusher_Pos", "Turf", "GameWeather", "Rusher_Gap_ToEdge"]
+categoricals = [var for var in categoricals if var in toKeep]
+# xtr = xtr.drop(categoricals, axis=1)
+for col in categoricals:
+    xtr[col] = pd.Categorical(xtr[col], categories=cleaner.categories[col])
 # xtr = pd.get_dummies(xtr, prefix_sep="_", drop_first=True)
+xtr = pd.get_dummies(xtr, prefix_sep="_")
 
 print('- estimate model')
-polyFeat = PolynomialFeatures(degree=2)
-xtr2 = polyFeat.fit_transform(xtr)
-lm = LinearRegression()
-lm.fit(xtr2, ytr)
-rangeY = np.log(np.clip(np.arange(-99, 100) + minY + 2, 1, None))
+ph = sm.PHReg(np.hstack(ytr2.values), np.vstack(xtr.values), np.hstack(ctr))
+phOut = ph.fit()
+baseline_hazard = phOut.baseline_cumulative_hazard_function[0](rangeY)
 
 print('- recalibrate predictions')
-yhat = lm.predict(xtr2).reshape(-1)
 ytrue = ytr.values.reshape(-1)
-FtYt = [norm.cdf(ytrue[i], yhat[i], .2) for i in range(len(yhat))]  # predicted cdf val at truth
+pred = xtr.apply(lambda x:
+                 1 - np.exp(- np.exp(phOut.params.dot(x)) * baseline_hazard), axis=1)
+pred = pred.apply(lambda x: rescale_probabilities(x))
+# predicted cdf val at truth
+FtYt = [pred.iloc[i][np.where(rangeY_true == ytr.iloc[i])[0].__int__()]
+        for i in range(len(ytr))]
 Phat_FtYt = np.array([np.mean(FtYt < p) for p in FtYt])
 ir = IsotonicRegression(y_min=0, y_max=1, out_of_bounds="clip")
 ir.fit(np.array(FtYt), Phat_FtYt)
 
 # for (df_te, sample_prediction_df) in env.iter_test():
 #     pass
-# lm.predict(xtr2)
 print('- make predictions on test set')
 for i, (df_te, sample_prediction_df) in enumerate(env.iter_test()):
     if i % 100 == 0:
@@ -529,18 +541,15 @@ for i, (df_te, sample_prediction_df) in enumerate(env.iter_test()):
     df_te = cleaner.clean_data(df_te)
     xte, playid_te = featgenerator.make_features(df_te)
 
-    # process for lm
+    # process for model
     xte = xte[toKeep]
-    # xte = xte.drop(xte.columns[categoricals], axis=1)
-    # for col in categoricals:
-    #     xte[col] = pd.Categorical(xte[col], categories=cleaner.categories[col])
-    # xte = pd.get_dummies(xte, prefix_sep="_", drop_first=True)
+    xte = xte.drop(categoricals, axis=1)
 
     # get predictions and cdf
-    xte2 = polyFeat.fit_transform(xte)
-    pred = lm.predict(xte2).__float__()
-    probs = norm.cdf(rangeY, pred, .2)
-    probsRe = ir.predict(probs)
+    xte = xte.squeeze()
+    pred = 1 - np.exp(- np.exp(phOut.params.dot(xte)) * baseline_hazard)
+    probsRe = ir.predict(rescale_probabilities(pred))
+    probsRe = rescale_probabilities(probsRe, lim_u=100-xte.LineOfScrimmage)
     df_pred = pd.DataFrame(data=probsRe.reshape(1, -1), columns=sample_prediction_df.columns)
     env.predict(df_pred)
 

@@ -111,6 +111,17 @@ ggplot(dfSub, aes(Distance, Yards)) +
   facet_wrap(~factor(Down))
 ```
 
-## Sub1 {-}
+# Check submission
 
-## Sub2 {-}
+making sure that predictions are ordered properly etc
+
+```{r}
+out = loadData("submission.csv")
+out %>% 
+  select(-PlayId) %>% 
+  as.matrix %>% 
+  apply(1, function(row) min(diff(row))) %>% 
+  min()
+range(out)
+```
+

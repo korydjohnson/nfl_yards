@@ -98,8 +98,9 @@ class ImageGenerator:
 
 class FeatureGenerator:
     def __init__(self, images=True, features=None, filt=False, s=.5, width=3,
-                 nPoints=3, times=None):
+                 nPoints=3, times=None, standardizeNumeric=True):
         self.images = images
+        self.standardizeNumeric = standardizeNumeric
         # creating features, method names
         self.features = features
         self.response = "Yards"
@@ -223,7 +224,8 @@ class FeatureGenerator:
                                    for col in self.feature_categorical}
 
     def standardize(self, covariates):
-        covariates[self.numeric] = (covariates[self.numeric] - self.means) / self.sds
+        if self.standardizeNumeric:
+            covariates[self.numeric] = (covariates[self.numeric] - self.means) / self.sds
         for col in self.feature_categorical:
             covariates[col] = pd.Categorical(covariates[col],
                                              categories=self.feature_categories[col])
